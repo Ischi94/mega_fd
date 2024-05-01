@@ -1,0 +1,9 @@
+.Rproj.user
+.Rhistory
+.RData
+.Ruserdata
+
+data/Aquamaps/*
+data/IUCN/*
+data/meow/*
+data/worldmap/*
