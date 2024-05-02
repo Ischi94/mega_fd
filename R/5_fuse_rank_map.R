@@ -3,6 +3,7 @@ library(raster)
 library(tidyverse)
 library(ade4)
 library(sf)
+library(patchwork)
 
 # get functions
 source(here("R", 
@@ -122,7 +123,58 @@ ggsave(plot_map,
        units = "mm",
        bg = "white")
 
-# # richness values per grid ------------------------------------------------
+# metrices per grid ------------------------------------------------
+
+# read in metrices and summarise per latitude
+dat_metrics <- read_rds(here("data",
+                             "functional_metrics.rds")) %>% 
+  group_by(latitude_y) %>% 
+  summarise(across(c(spR, FRic, fuse, uniq, special), mean)) %>% 
+  mutate(across(c(spR, FRic, fuse, uniq, special), ~scale(.x))) %>% 
+  pivot_longer(cols = -latitude_y, 
+               names_to = "metric") 
+
+
+plot_latid <- dat_metrics %>%
+  ggplot(aes(value, latitude_y, 
+             colour = metric)) +
+  geom_path(linewidth = 0.5) +
+  geom_path(data = dat_map %>% 
+              group_by(latitude_y) %>% 
+              summarise(value = mean(fuse_prop, 
+                                     na.rm = TRUE)) %>% 
+              mutate(value = scale(value)) %>% 
+              add_column(metric = "fuse_prop"), 
+            linewidth = 1.1, 
+            colour = "grey10") +
+  scale_color_manual(values = c(colour_coral, 
+                                colour_mint, 
+                                colour_yellow, 
+                                colour_purple, 
+                                "brown"), 
+                     labels = c("FRic", "FUSE", "FSp", 
+                                "SR", "FUn"),
+                     name = "Metric") +
+  annotate(size = 10/.pt, 
+           "text", 
+           label = "FUSE\nGlobal-local \nagreement", 
+           x = 1.5, 
+           y = -35) +
+  labs(y = "Latitude", 
+       x = "Z-score") +
+  theme(legend.position = c(0.9, 0.5))
+
+# patch together
+plot_final <- plot_map/ plot_latid
+
+# save plot
+ggsave(plot_final,
+       filename = here("figures",
+                       "main",
+                       "5_agreement_map.pdf"),
+       width = 183, height = 100*2,
+       units = "mm",
+       bg = "white")
 # 
 # # computes species richness and functional richness per grid cell
 # fd_metrics <- spp_per_grid %>% 
