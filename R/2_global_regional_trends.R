@@ -47,6 +47,10 @@ MEOW_sf <- read_sf(here("data",
                         "meow_ecos.shp"))
 
 
+# IUCN categories
+dat_iucn <- read_csv(here("data",
+                          "megafauna_traits.csv")) %>%
+  select(species, higher_classification, IUCN)
 
 # metrics per realm ----------------------------------------------------------
 
@@ -94,29 +98,44 @@ for (i in 1:length(realm_char)) {
   dist_mat_realm <- as.matrix(distance_trait_matrix)[spec_to_keep, spec_to_keep]
   
   # subset trait space to realm species pool
-  pcoa_realm <- na.omit(pcoa[spp_per_realm$species, ])
+  pcoa_realm <- na.omit(pcoa[spp_per_realm$species, ]) 
   
-  # Uniqueness calculation
-  uni_res <- get_indicator(Mat_dist = dist_mat_realm, 
-                           nb_NN = 5)
   
-  uniqu <- uni_res$Average_uniqueness[,"Mean"] %>% 
+  # prepare iucn categories
+  ge <- dat_iucn %>%
+    mutate(ge = case_when(
+      IUCN == "LC" ~ 0, 
+      IUCN == "NT" ~ 1, 
+      IUCN == "VU" ~ 2,
+      IUCN == "EN" ~ 3, 
+      IUCN == "CR" ~ 4, 
+      .default = NA_integer_
+    )) %>% 
+    filter(species %in% rownames(pcoa_realm)) 
+  
+  # arrange correctly
+  pcoa_realm <- pcoa_realm[match(ge$species, rownames(pcoa_realm)), ]
+  dist_mat_realm <- dist_mat_realm[match(ge$species, rownames(dist_mat_realm)), ]
+  ge <- ge[match(rownames(pcoa_realm), ge$species), ] %>% 
+    pull(ge) 
+  
+  
+  identical(row.names(dist_mat_realm), row.names(pcoa_realm))
+  
+  # Compute FUSE metrics 
+  list_fuse_realm[[i]] <- get_FUSE(Mat_dist = dist_mat_realm,
+                       Coords = pcoa_realm,
+                       GE = ge) %>% 
     as_tibble(rownames = "species") %>% 
-    mutate(specialisation = as.vector(decostand(value,"range"))) %>% 
-    select(-value)
-  
-  # Specialization calculation
-  O <- apply(pcoa_realm, 2, mean)
-  spe <- apply(pcoa_realm, 1, function(x){sum((x-O)^2)^0.5}) %>% 
-    as_tibble(rownames = "species") %>% 
-    mutate(uniqueness = as.vector(decostand(value,"range"))) %>% 
-    select(-value)
-  
-  list_fuse_realm[[i]] <- full_join(uniqu, spe) %>% 
+    arrange(species) %>%
+    select(species, FUSE, FUn_std, FSp_std) %>% 
+    rename_with(.cols = -species, 
+                .fn = ~ paste0(.x, "_local")) %>% 
     add_column(realm = realm_char[i]) %>% 
     left_join(dat_fuse %>% 
-                select(species, FUn_std, 
+                select(species, FUSE, FUn_std, 
                        FSp_std))
+  
 }
 
 # combine in one dataframe
@@ -131,11 +150,11 @@ dat_realm %>%
 # visualise rank-rank -----------------------------------------------------
 
 # fuse
-plot_uniq <- dat_realm %>%
+plot_fuse <- dat_realm %>%
   group_by(realm) %>% 
-  arrange(desc(uniqueness)) %>% 
+  arrange(desc(FUSE_local)) %>% 
   mutate(local_rank = 1:n()) %>% 
-  arrange(desc(FUn_std)) %>% 
+  arrange(desc(FUSE)) %>% 
   mutate(global_rank = 1:n()) %>% 
   ungroup() %>% 
   mutate(local_rank = if_else(between(local_rank, 1, 10), 
@@ -149,7 +168,7 @@ plot_uniq <- dat_realm %>%
            local_rank == "none" & global_rank == "global" ~ "global", 
            local_rank == "none" & global_rank == "not" ~ "bnothing"
          )) %>% 
-  ggplot(aes(uniqueness, FUn_std)) +
+  ggplot(aes(FUSE_local, FUSE)) +
   geom_abline(intercept = 0,
               slope = 1, 
               linetype = "dotted",
@@ -161,243 +180,27 @@ plot_uniq <- dat_realm %>%
              alpha = 0.9,
              stroke = 0.8,
              size = 2) +
-  annotate("text", 
-           colour = colour_purple, 
-           size = 10/.pt, 
-           label = "Global most unique", 
-           x = 0.5, 
-           y = 1.1, 
-           fontface = "bold") +
-  annotate("text", 
-           colour = colour_mint, 
-           size = 10/.pt, 
-           label = "Local most unique", 
-           x = 1.1, 
-           y = 0.5, 
-           fontface = "bold", 
-           angle = 270) +
   scale_fill_manual(values = c(colour_purple,
                                "grey90")) +
   scale_colour_manual(values = c("grey80",
                                  colour_purple, 
                                  colour_mint)) +
-  labs(y = "Global\nFunctional Uniqueness [std]", 
-       x = "Regional\nFunctional Uniqueness [std]") +
-  scale_y_continuous(breaks = c(0, 0.5, 1), 
-                     labels = c("0", "0.5", "1")) +
-  scale_x_continuous(breaks = c(0, 0.5, 1), 
-                     labels = c("0", "0.5", "1")) +
+  labs(y = "Global FUSE", 
+       x = "Regional FUSE") +
+  scale_y_continuous(breaks = c(0, 1, 2, 3), 
+                     labels = c("0", "1", "2", "3")) +
+  scale_x_continuous(breaks = c(0, 1, 2, 3), 
+                     labels = c("0", "1", "2", "3")) +
+  facet_wrap(~ realm) +
   theme(legend.position = "none")
-
-# specialisation
-plot_spec <- dat_realm %>%
-  group_by(realm) %>% 
-  arrange(desc(specialisation)) %>% 
-  mutate(local_rank = 1:n()) %>% 
-  arrange(desc(FSp_std)) %>% 
-  mutate(global_rank = 1:n()) %>% 
-  ungroup() %>% 
-  mutate(local_rank = if_else(between(local_rank, 1, 10), 
-                              "local", 
-                              "not"), 
-         global_rank = if_else(between(global_rank, 1, 10), 
-                               "global", 
-                               "non"), 
-         local_rank = case_when(
-           local_rank == "local" ~ "local", 
-           local_rank == "not" & global_rank == "global" ~ "global", 
-           local_rank == "not" & global_rank == "non" ~ "bnothing"
-         )) %>% 
-  ggplot(aes(specialisation , FSp_std, 
-             colour = realm)) +
-  geom_abline(intercept = 0,
-              slope = 1, 
-              linetype = "dotted",
-              colour = "grey50") +
-  geom_point(aes(fill = global_rank,
-                 colour = local_rank),
-             shape = 21,
-             alpha = 0.9,
-             stroke = 0.8,
-             size = 2) +
-  annotate("text", 
-           colour = colour_purple, 
-           size = 10/.pt, 
-           label = "Global most specialised", 
-           x = 0.5, 
-           y = 1.1, 
-           fontface = "bold") +
-  annotate("text", 
-           colour = colour_mint, 
-           size = 10/.pt, 
-           label = "Local most specialised", 
-           x = 1.1, 
-           y = 0.5, 
-           fontface = "bold", 
-           angle = 270) +
-  scale_fill_manual(values = c(colour_purple,
-                               "grey90")) +
-  scale_colour_manual(values = c("grey80",
-                                 colour_purple, 
-                                 colour_mint)) +
-  labs(y = "Global\nFunctional Specialisation [std]", 
-       x = "Regional\nFunctional Specialisation [std]") +
-  scale_y_continuous(breaks = c(0, 0.5, 1), 
-                     labels = c("0", "0.5", "1")) +
-  scale_x_continuous(breaks = c(0, 0.5, 1), 
-                     labels = c("0", "0.5", "1")) +
-  theme(legend.position = "none")
-
-
-# patch together
-plot_final <- plot_uniq /
-  plot_spec +
-  plot_annotation(tag_levels = "a")
-
 
 # save plot
-ggsave(plot_final, 
+ggsave(plot_fuse, 
        filename = here("figures",
                        "main", 
-                       "local_global_overlap.pdf"),
-       width = 183, height = 100*2,
+                       "6_agreement_per_province.pdf"),
+       width = 183*1.2, height = 100,
        units = "mm",
        bg = "white")
-
-
-# supplementary plots -----------------------------------------------------
-
-
-# per uniqueness
-plot_uniq_realm <- dat_realm %>%
-  group_by(realm) %>% 
-  arrange(desc(uniqueness)) %>% 
-  mutate(local_rank = 1:n()) %>% 
-  arrange(desc(FUn_std)) %>% 
-  mutate(global_rank = 1:n()) %>% 
-  ungroup() %>% 
-  mutate(local_rank = if_else(between(local_rank, 1, 10), 
-                              "local", 
-                              "none"), 
-         global_rank = if_else(between(global_rank, 1, 10), 
-                               "global", 
-                               "not")) %>% 
-  ggplot(aes(uniqueness, FUn_std)) +
-  geom_abline(intercept = 0,
-              slope = 1, 
-              linetype = "dotted",
-              colour = "grey50") +
-  # geom_point(shape = 21,
-  #            alpha = 0.7,
-  #            stroke = 0.8,
-  #            size = 2,
-  #            colour = "grey20",
-  #            fill = "grey80") +
-  geom_point(aes(fill = global_rank
-                 ,colour = local_rank
-                 ),
-             shape = 21,
-             alpha = 0.7,
-             stroke = 0.8,
-             # colour = "grey20",
-             size = 2) +
-  scale_fill_manual(values = c("purple3",
-                               "grey80")) +
-  scale_colour_manual(values = c("orange",
-                                 "grey20")) +
-  facet_wrap(~ realm) +
-  labs(y = "Global\nFunctional Uniqueness [std]", 
-       x = "Regional\nFunctional Uniqueness [std]") +
-  scale_y_continuous(breaks = c(0, 0.5, 1), 
-                     labels = c("0", "0.5", "1")) +
-  scale_x_continuous(breaks = c(0, 0.5, 1), 
-                     labels = c("0", "0.5", "1")) +
-  theme_minimal() +
-  theme(legend.position = "none", 
-        strip.text = element_text(size = 8))
-
-# save plot uniqueness
-ggsave(plot_uniq_realm, 
-       filename = here("figures",
-                       "supplement",
-                       "uniq_comp.png"),
-       width = 1920, height = 1080*2,
-       units = "px",
-       bg = "white", device = ragg::agg_png)
-
-# residuals of uniqueness
-dat_realm %>%
-  mutate(resid = FUn_std - uniqueness) %>% 
-  ggplot(aes(resid)) +
-  stat_slab(aes(fill = after_stat(x >= 0))) +
-  geom_vline(xintercept = 0)
-
-
-# specialisation
-plot_spec_realm <- dat_realm %>%
-  group_by(realm) %>% 
-  arrange(desc(specialisation)) %>% 
-  mutate(local_rank = 1:n()) %>% 
-  arrange(desc(FSp_std)) %>% 
-  mutate(global_rank = 1:n()) %>% 
-  ungroup() %>% 
-  mutate(local_rank = if_else(between(local_rank, 1, 10), 
-                              "local", 
-                              "not"), 
-         global_rank = if_else(between(global_rank, 1, 10), 
-                               "global", 
-                               "non")) %>% 
-  ggplot(aes(specialisation , FSp_std, 
-             colour = realm)) +
-  geom_abline(intercept = 0,
-              slope = 1, 
-              linetype = "dotted",
-               colour = "grey50") +
-  # geom_point(shape = 21,
-  #            alpha = 0.7,
-  #            stroke = 0.8,
-  #            size = 2,
-  #            colour = "grey20",
-  #            fill = "grey80") +
-  geom_point(aes(fill = global_rank
-                 , colour = local_rank
-                 ),
-             shape = 21,
-             alpha = 0.7,
-             stroke = 0.8,
-             # colour = "grey20",
-             size = 2) +
-  scale_fill_manual(values = c("purple3",
-                               "grey80")) +
-  scale_colour_manual(values = c("orange",
-                                 "grey20")) +
-  facet_wrap(~ realm) +
-  labs(y = "Global\nFunctional Specialisation [std]", 
-       x = "Regional\nFunctional Specialisation [std]") +
-  scale_y_continuous(breaks = c(0, 0.5, 1), 
-                     labels = c("0", "0.5", "1")) +
-  scale_x_continuous(breaks = c(0, 0.5, 1), 
-                     labels = c("0", "0.5", "1")) +
-  theme_minimal() +
-  theme(legend.position = "none", 
-        strip.text = element_text(size = 8))
-  
-# save plot specialisation
-ggsave(plot_spec_realm, 
-       filename = here("figures",
-                       "supplement", 
-                       "speci_comp.png"),
-       width = 1920, height = 1080*2,
-       units = "px",
-       bg = "white", device = ragg::agg_png)
-
-# residuals specialisation
-dat_realm %>%
-  mutate(resid = FSp_std - specialisation) %>% 
-  ggplot(aes(resid)) +
-  stat_slab(aes(fill = after_stat(x >= 0))) +
-  geom_vline(xintercept = 0) +
-  facet_wrap(~ realm)
-
 
 
