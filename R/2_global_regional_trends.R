@@ -204,3 +204,127 @@ ggsave(plot_fuse,
        bg = "white")
 
 
+
+# add rank-rank plot ------------------------------------------------------
+
+# first from local to global
+dat_loc_glob <- dat_realm %>% 
+  group_by(realm) %>% 
+  select(species, FUSE_local, realm) %>% 
+  arrange(desc(FUSE_local)) %>% 
+  slice_head(n = 5) %>% 
+  mutate("local_rank" = row_number()) %>%  
+  select(species, local_rank, realm) %>% 
+  left_join(dat_fuse %>%
+              arrange(desc(FUSE)) %>%
+              mutate(global_rank = row_number()) %>%
+              select(species, global_rank)) %>% 
+  mutate(local_rank = as.integer(local_rank)) %>% 
+  pivot_longer(cols = -c(species, realm),
+               names_to = "scale",
+               values_to = "rank") %>%
+  mutate(scale = as.integer(as.factor(scale))) %>% 
+  ungroup() %>% 
+  mutate(rank_log = log(rank))
+
+# visualise
+# plot_loc_glob <- 
+dat_loc_glob %>% 
+  ggplot(aes(x = scale,
+             y = rank_log)) +
+  geom_line(aes(group = species), 
+            colour = colour_grey) +
+  geom_text(aes(x = 0.7,
+                y = rank_log,
+                label = rank),
+            data = dat_loc_glob %>% 
+              filter(scale == 1),
+            size = 8/.pt) +
+  geom_text(aes(label = species),
+            data = dat_loc_glob %>%
+              filter(scale == 2),
+            size = 7/.pt,
+            hjust = 1,
+            position = position_nudge(x = -0.8)) +
+  labs(y = "FUSE rank",
+       x = NULL) +
+  scale_x_continuous(trans = "reverse",
+                     breaks = c(1, 4),
+                     labels = c("Global", "Local")) +
+  scale_y_reverse(breaks = NULL) +
+  coord_cartesian(xlim = c(6, 0.6)) +
+  facet_wrap(~ realm, 
+             scales = "free_y") +
+  theme(legend.position = "none",
+        panel.grid = element_blank())
+
+# save plot
+ggsave(plot_loc_glob, 
+       filename = here("figures",
+                       "main", 
+                       "7_rank_local_global.pdf"),
+       width = 183*1.2, height = 100*1.5,
+       units = "mm",
+       bg = "white")
+
+
+# same for global to local
+dat_glob_loc <- dat_fuse %>%
+  arrange(desc(FUSE)) %>%
+  slice_head(n = 5) %>%
+  mutate(global_rank = row_number()) %>%
+  select(species, global_rank) %>% 
+  left_join(dat_realm %>% 
+              group_by(realm) %>% 
+              select(species, FUSE_local, realm) %>% 
+              arrange(desc(FUSE_local)) %>% 
+              mutate("local_rank" = row_number()) %>%  
+              select(species, local_rank, realm)) %>% 
+  pivot_longer(cols = -c(species, realm),
+               names_to = "scale",
+               values_to = "rank") %>%
+  mutate(scale = as.integer(as.factor(scale))) %>% 
+  mutate(rank_log = log(rank))
+
+
+# visualise
+plot_glob_loc <- dat_glob_loc %>%
+  ggplot(aes(x = scale,
+             y = rank_log)) +
+  geom_line(aes(group = interaction(species, realm), 
+                colour = realm)) +
+  geom_text(aes(x = 2.3,
+                y = rank_log,
+                label = rank),
+            data = dat_glob_loc %>% 
+              filter(scale == 2) %>% 
+              distinct(scale, rank, rank_log),
+            size = 8/.pt) +
+  geom_text(aes(label = species),
+            data = dat_glob_loc %>%
+              filter(scale == 1) %>% 
+              distinct(species, rank_log, scale),
+            size = 7/.pt,
+            hjust = 1,
+            position = position_nudge(x = -0.5)) +
+  labs(y = "FUSE rank",
+       x = NULL) +
+  scale_colour_discrete(na.translate = F, 
+                        name = NULL) +
+  scale_y_reverse(breaks = NULL) +
+  coord_cartesian(xlim = c(-1, 3)) +
+  scale_x_continuous(breaks = c(1, 2),
+                     labels = c("Global", "Local")) +
+  theme(legend.position = "bottom",
+        legend.text = element_text(colour = "grey20", size = 7), 
+        legend.key.size = unit(3, "mm"),
+        panel.grid = element_blank())
+
+# save plot
+ggsave(plot_glob_loc, 
+       filename = here("figures",
+                       "main", 
+                       "7_rank_global_local.pdf"),
+       width = 183, height = 100,
+       units = "mm",
+       bg = "white")
