@@ -149,6 +149,18 @@ vec_spec <- map_dbl(dat_mean_fuse,
                     ~ pull(.x, "mean_spec"), 
                     .progress = TRUE)
 
+# 25% top fuse species
+dat_fuse_top <- spp_per_grid %>%
+  map( ~ enframe(.x,
+                 value = "species")) %>% 
+  map(~ .x %>% 
+        filter(species %in% (dat_fuse %>% # define top fuse species
+                               filter(FUSE  > quantile(FUSE ,
+                                                       probs =  0.75,
+                                                       na.rm = TRUE)) %>% 
+                               pull(species))), 
+      .progress = TRUE)
+
 
 # combine ----------------------------------------------------------------
 
@@ -164,7 +176,8 @@ dat_metrics <- tibble(spR = vec_spR,
                                  "latitude_y"),
                        delim = "_") %>%
   mutate(across(c(longitude_x, latitude_y), as.double), 
-         FRic = FRic*100) 
+         FRic = FRic*100) %>% 
+  add_column(fuse_top = map_dbl(dat_fuse_top, nrow)) 
 
 # save
 dat_metrics %>% 
@@ -252,22 +265,6 @@ plot_lat_fuse <- dat_metrics %>%
   theme(legend.position = "none", 
         axis.text = element_blank(), 
         axis.ticks = element_blank())
-
-# 25% top fuse species
-dat_fuse_top <- spp_per_grid %>%
-  map( ~ enframe(.x,
-                 value = "species")) %>% 
-  map(~ .x %>% 
-        filter(species %in% (dat_fuse %>% # define top fuse species
-                 filter(FUSE  > quantile(FUSE ,
-                                         probs =  0.75,
-                                         na.rm = TRUE)) %>% 
-                 pull(species))), 
-      .progress = TRUE)
-
-# calculate richness and plot
-dat_metrics <- dat_metrics %>% 
-  add_column(fuse_top = map_dbl(dat_fuse_top, nrow)) 
   
 plot_fuse_top <- plot_metric(fuse_top, "Top 25% FUSE\nSR") +
   theme(legend.position = "bottom")
