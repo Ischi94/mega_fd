@@ -231,8 +231,27 @@ ggsave(plot_final,
 
 
 # mean fuse per cell
-plot_fuse <- plot_metric(fuse, "FUSE")
+plot_fuse <- plot_metric(fuse, "FUSE") +
+  scale_fill_gradientn(colours = rev(RColorBrewer::brewer.pal(10,"RdBu")), 
+                       name = "FUSE", 
+                       breaks = c(0, 0.5, 1),
+                       limits = c(0, 1.25)) +
+  theme(legend.position = "top")
 
+# latitudinal pattern
+plot_lat_fuse <- dat_metrics %>% 
+  group_by(latitude_y) %>% 
+  summarise(fuse = mean(fuse)) %>% 
+  ggplot(aes(fuse, latitude_y, 
+             colour = fuse)) +
+  scale_colour_gradientn(colours = rev(RColorBrewer::brewer.pal(10,"RdBu")), 
+                       limits = c(0, 1.25)) +  
+  geom_path(linewidth = 0.5) +
+  labs(y = NULL, 
+       x = NULL) +
+  theme(legend.position = "none", 
+        axis.text = element_blank(), 
+        axis.ticks = element_blank())
 
 # 25% top fuse species
 dat_fuse_top <- spp_per_grid %>%
@@ -250,32 +269,35 @@ dat_fuse_top <- spp_per_grid %>%
 dat_metrics <- dat_metrics %>% 
   add_column(fuse_top = map_dbl(dat_fuse_top, nrow)) 
   
-plot_fuse_top <- plot_metric(fuse_top, "Top 25% FUSE\nSR")
-  
+plot_fuse_top <- plot_metric(fuse_top, "Top 25% FUSE\nSR") +
+  theme(legend.position = "bottom")
 
-
-map(~ .x %>% 
-        right_join(sp_list) %>%
-        drop_na() %>%
-        filter(fuse_high == TRUE) %>% 
-        nrow())
-  
-  
-# fuse 25%
-plot_fuse_high <- plot_metric(fuse_high, "Top 25% FUSE\nSR")
-
+# latitudinal pattern
+plot_lat_fuse_top <- dat_metrics %>%
+  group_by(latitude_y) %>% 
+  summarise(fuse_top = mean(fuse_top)) %>% 
+  ggplot(aes(fuse_top, latitude_y, 
+             colour = fuse_top)) +
+  scale_colour_gradientn(colours = rev(RColorBrewer::brewer.pal(10,"RdBu")), 
+                         limits = c(0, 16)) +  
+  geom_path(linewidth = 0.5) +
+  labs(y = NULL, 
+       x = NULL) +
+  theme(legend.position = "none", 
+        axis.text = element_blank(), 
+        axis.ticks = element_blank())
 
 # patch together
-plot_final_fuse <- plot_fuse / 
-  plot_fuse_top
+plot_final_fuse <- (plot_fuse + plot_lat_fuse) /
+  (plot_fuse_top + plot_lat_fuse_top) 
 
 
 # save
 ggsave(plot_final_fuse, 
        filename = here("figures",
                        "main",
-                       "2_fuse.pdf"),
-       width = 183, height = 100*2,
+                       "2_fuse.svg"),
+       width = 183*2, height = 100*2,
        units = "mm",
        bg = "white")
 

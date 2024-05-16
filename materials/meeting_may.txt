@@ -1,0 +1,4 @@
+add sidebars with additional metrics to 2_fuse.
+hotspots for fuse.
+green turtle functional space. 
+local space of metrics. 
