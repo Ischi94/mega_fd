@@ -46,6 +46,10 @@ MEOW_sf <- read_sf(here("data",
 dat_realm <- read_rds(here("data",
                            "global_regional_trends.rds"))
 
+# global/ local fuse ranking
+dat_rank <- read_rds(here("data", 
+                          "global_regional_trends.rds"))
+
 # species pool per realm -------------------------------------------------------
 
 # list of all species present per grid 
@@ -85,9 +89,7 @@ for (i in 1:length(realm_char)) {
 }
 
 
-# assign pcoa to realms ---------------------------------------------------
-
-# get all four axis per realm
+# assign pcoa to realms
 dat_spp_realm <- list_spp_realm %>% 
   map(~ left_join(.x, dat_pcoa)) %>% 
   bind_rows()
@@ -97,56 +99,69 @@ dat_hull_1_ov <- dat_spp_realm %>%
   slice(chull(A1, A2)) %>% 
   select(-realm)
 
-# calculate convex hulls for axis 1 and 2
-dat_hull_1 <- dat_spp_realm %>% 
+# compare to higher ranking species ---------------------------------------
+
+# get the species that rank higher locally
+dat_higher_rank <- dat_rank %>% 
+  right_join(dat_rank %>% 
+              filter(species == "Chelonia mydas") %>% 
+              rename(FUSE_chelonia = FUSE_local) %>% 
+              select(realm, FUSE_chelonia)) %>% 
   group_by(realm) %>% 
-  slice(chull(A1, A2)) %>% 
-  ungroup()
+  mutate(is_higher_local = if_else(FUSE_local > FUSE_chelonia, 
+                                   1, 0)) %>% 
+  ungroup() %>% 
+  distinct(realm, species, is_higher_local)
 
-# calculate overall convex hull for axis 1 and 3
-dat_hull_2_ov <- dat_spp_realm %>% 
-  slice(chull(A1, A3)) %>% 
-  select(-realm)
-
-# calculate convex hulls for axis 1 and 3
-dat_hull_2 <- dat_spp_realm %>% 
-  group_by(realm) %>% 
-  slice(chull(A1, A3)) %>% 
-  ungroup()
-
-# calculate overall convex hull for axis 2 and 3
-dat_hull_3_ov <- dat_spp_realm %>% 
-  slice(chull(A2, A3)) %>% 
-  select(-realm)
-
-# calculate convex hulls for axis 2 and 3
-dat_hull_3 <- dat_spp_realm %>% 
-  group_by(realm) %>% 
-  slice(chull(A2, A3)) %>% 
-  ungroup()
-
-
-# specialisation ----------------------------------------------------------
-
-dat_spp_realm %>%
-  # filter(realm %in% (dat_spp_realm %>% 
-  #          filter(species == "Chelonia mydas") %>% 
-  #          distinct(realm) %>% 
-  #          pull(realm)))
-  group_by(realm) %>% 
-  # center of traitspace
-  summarise(A1 = mean(A1),
-            A2 = mean(A2),
-            A3 = mean(A3)) %>% 
-  full_join(dat_spp_realm %>% 
-              summarise(A1 = mean(A1), 
-                        A2 = mean(A2), 
-                        A3 = mean(A3)) %>% 
-              add_column(realm = "global")) %>% 
-  ggplot(aes(A2, A3)) +
-  geom_text(aes(label = realm)) +
+# visualise 
+plot_higher_rank <- dat_spp_realm %>%
+  left_join(dat_higher_rank) %>% 
+  mutate(is_higher_local = as.character(is_higher_local)) %>% 
+  ggplot(aes(A1, A2)) +
+  geom_polygon(fill = NA,
+               colour = "grey20",
+               data = dat_hull_1_ov) +
+  geom_point(aes(colour = is_higher_local)) +
   geom_point(data = dat_spp_realm %>% 
-               filter(species == "Chelonia mydas")) 
+               filter(species == "Chelonia mydas"), 
+             colour = colour_coral) +
+  scale_color_manual(values = c(colour_grey, colour_yellow, colour_grey)) +
+  facet_wrap(~realm) +
+  theme(legend.position = "none")
 
-  
-dat_spp_realm
+# save plot
+ggsave(plot_higher_rank, 
+       filename = here("figures",
+                       "main", 
+                       "green_sea_turtle",
+                       "higher_ranking_sp.pdf"),
+       width = 183*1.2, height = 100*1.5,
+       units = "mm",
+       bg = "white")
+
+
+
+
+# metrics per realm -------------------------------------------------------
+
+# calculate species richness, functional richness, and
+# functional diversity per realm
+fd_metrics <- list_spp_realm %>%
+  map(~pull(.x, species)) %>% 
+  map(~get_FV_Sp(ax = c(1:4),
+                 pcoa = dudi.pco(quasieuclid(distance_trait_matrix),
+                                 scannf = FALSE,
+                                 nf = 4),
+                 Selected_sp = .x), 
+      .progress = TRUE)
+
+# create tibble
+dat_metrics <- tibble(realm = realm_char, 
+                      spR =  map_dbl(fd_metrics,
+                                     ~pluck(.x, "data") %>%
+                                       pull("RS")), 
+                      FRic =  map_dbl(fd_metrics,
+                                      ~pluck(.x, "data") %>%
+                                        pull("FRic")))
+
+

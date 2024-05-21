@@ -152,7 +152,7 @@ dat_realm %>%
 # fuse
 plot_fuse <- dat_realm %>%
   group_by(realm) %>% 
-  # arrange(desc(FUSE_local)) %>% 
+  arrange(desc(FUSE_local)) %>%
   mutate(local_rank = 1:n()) %>% 
   arrange(desc(FUSE)) %>% 
   mutate(global_rank = 1:n()) %>% 
