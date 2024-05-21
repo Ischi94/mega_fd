@@ -152,7 +152,7 @@ dat_realm %>%
 # fuse
 plot_fuse <- dat_realm %>%
   group_by(realm) %>% 
-  arrange(desc(FUSE_local)) %>% 
+  # arrange(desc(FUSE_local)) %>% 
   mutate(local_rank = 1:n()) %>% 
   arrange(desc(FUSE)) %>% 
   mutate(global_rank = 1:n()) %>% 
@@ -292,7 +292,8 @@ plot_glob_loc <- dat_glob_loc %>%
   ggplot(aes(x = scale,
              y = rank_log)) +
   geom_line(aes(group = interaction(species, realm), 
-                colour = realm)) +
+                colour = realm), 
+            position = position_dodge(width = 0.1)) +
   geom_text(aes(x = 2.3,
                 y = rank_log,
                 label = rank),
