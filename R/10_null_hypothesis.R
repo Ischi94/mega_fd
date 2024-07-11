@@ -150,7 +150,7 @@ dat_final %>%
   write_rds(here("data", 
                  "null_comparison.rds"))
 
-dat_final %>% 
+plot_null <- dat_final %>% 
   ggplot() +
   geom_raster(aes(x = longitude_x,
                   y = latitude_y, 
@@ -168,3 +168,12 @@ dat_final %>%
   scale_y_continuous(breaks = seq(-90, 90, 30), 
                      expand = c(0, 0)) 
 
+
+# save plot
+ggsave(plot_null, 
+       filename = here("figures",
+                       "main",
+                       "overdispersion.pdf"),
+       width = 183, height = 100,
+       units = "mm",
+       bg = "white")
