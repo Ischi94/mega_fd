@@ -143,7 +143,10 @@ for (i in 1:length(spp_per_grid)) {
     select(species, FUSE, FUn_std, FSp_std) %>% 
     rename_with(.cols = -species, 
                 .fn = ~ paste0(.x, "_local")) %>% 
-    summarise(across(-species, ~mean(.x, na.rm = TRUE)))
+    summarise(across(-species, list(~mean(.x, na.rm = TRUE), 
+                                    ~max(.x, na.rm = TRUE), 
+                                    ~median(.x, na.rm = TRUE), 
+                                    ~sd(.x, na.rm = TRUE))))
   
   print(i)
 }
@@ -169,20 +172,16 @@ dat_local_metric %>%
 
 # plot function
 plot_metric <- function(metric_col, 
-                        label, 
-                        breaks, 
-                        limits) {
+                        label) {
   
   dat_local_metric %>%
     ggplot() +
     geom_raster(aes(x = longitude_x,
                     y = latitude_y, 
-                    fill = !!enquo(metric_col))) +
+                    fill = !!(metric_col))) +
     geom_sf(data = world_map_sf, col = NA, fill = "white", size = 0.1) +
     scale_fill_gradientn(colours = rev(RColorBrewer::brewer.pal(10,"RdBu")), 
-                         name = label, 
-                         breaks = breaks, 
-                         limits = limits) +
+                         name = label) +
     labs(x = "Longitude", y = "Latitude") +
     coord_sf(xlim = c(-180, 180), ylim= c(-89, 85), expand=FALSE) +
     scale_x_continuous(breaks = seq(-180, 180, 30), 
@@ -192,92 +191,26 @@ plot_metric <- function(metric_col,
 }
 
 
-# FUSE
-plot_fuse <- plot_metric(FUSE_local, "FUSE", 
-                         breaks = c(0, 0.5, 1),
-                         limits = c(0, 1.25)) 
 
-# uniqueness
-plot_uniq <- plot_metric(FUn_std_local , "FUn", 
-                         breaks = seq(0.1, 0.5, by = 0.1), 
-                         limits = c(0.09, 0.52)) 
+list_names <- paste(rep(c("FUSE", "FUn", "FSp"), each = 4), 
+                    c("[mean]", "[max]", "[median]", "[sd]"))
 
-# specialisation
-plot_spec <- plot_metric(FSp_std_local , "FSp", 
-                         breaks = seq(0.3, 0.6, by = 0.1), 
-                         limits = c(0.19, 0.71))
+# set up list to save
+list_plots <- vector("list", length = length(list_names))
 
+# iterate through
+for (i in seq_along(list_names)) {
+  
+  list_plots[[i]] <- plot_metric(sym(colnames(dat_local_metric)[[i]]), list_names[[i]])
+  
+}
 
-# patch together
-plot_final <- plot_fuse / plot_uniq / plot_spec
-
-
-# save
-ggsave(plot_final, 
-       filename = here("figures",
-                       "main",
-                       "1_1_metrics_local.pdf"),
-       width = 183, height = 100*2,
-       units = "mm",
-       bg = "white")
-
-
-
-# visualise fuse metrics --------------------------------------------------
-
-
-# mean fuse per cell
-plot_fuse <- plot_metric(fuse, "FUSE") +
-  scale_fill_gradientn(colours = rev(RColorBrewer::brewer.pal(10,"RdBu")), 
-                       name = "FUSE", 
-                       breaks = c(0, 0.5, 1),
-                       limits = c(0, 1.25)) +
-  theme(legend.position = "top")
-
-# latitudinal pattern
-plot_lat_fuse <- dat_metrics %>% 
-  group_by(latitude_y) %>% 
-  summarise(fuse = mean(fuse)) %>% 
-  ggplot(aes(fuse, latitude_y, 
-             colour = fuse)) +
-  scale_colour_gradientn(colours = rev(RColorBrewer::brewer.pal(10,"RdBu")), 
-                         limits = c(0, 1.25)) +  
-  geom_path(linewidth = 0.5) +
-  labs(y = NULL, 
-       x = NULL) +
-  theme(legend.position = "none", 
-        axis.text = element_blank(), 
-        axis.ticks = element_blank())
-
-plot_fuse_top <- plot_metric(fuse_top, "Top 25% FUSE\nSR") +
-  theme(legend.position = "bottom")
-
-# latitudinal pattern
-plot_lat_fuse_top <- dat_metrics %>%
-  group_by(latitude_y) %>% 
-  summarise(fuse_top = mean(fuse_top)) %>% 
-  ggplot(aes(fuse_top, latitude_y, 
-             colour = fuse_top)) +
-  scale_colour_gradientn(colours = rev(RColorBrewer::brewer.pal(10,"RdBu")), 
-                         limits = c(0, 16)) +  
-  geom_path(linewidth = 0.5) +
-  labs(y = NULL, 
-       x = NULL) +
-  theme(legend.position = "none", 
-        axis.text = element_blank(), 
-        axis.ticks = element_blank())
-
-# patch together
-plot_final_fuse <- (plot_fuse + plot_lat_fuse) /
-  (plot_fuse_top + plot_lat_fuse_top) 
-
-
-# save
-ggsave(plot_final_fuse, 
-       filename = here("figures",
-                       "main",
-                       "2_fuse.svg"),
-       width = 183*2, height = 100*2,
-       units = "mm",
-       bg = "white")
-
+# save figures
+walk2(list_plots, 
+      list_names %>% map(~str_replace_all(.x, " ", "_") %>%
+                           str_c(., ".pdf")),
+      ~ggsave(plot = .x, filename = .y, 
+              path = here("figures", "local_metrics"), 
+              width = 183, height = 100, 
+              device = "pdf", 
+              units = "mm", bg = "white"))
