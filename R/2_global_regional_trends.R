@@ -397,13 +397,13 @@ plot_cor_loc <- dat_var %>%
 # merge together
 plot_final <- free(plot_mode) /
   (plot_cor_prov + plot_cor_loc) +
-  plot_layout(heights = c(2, 1))
+  plot_layout(heights = c(1.5, 1))
 
 # save plot
 ggsave(plot_final, 
        filename = here("figures",
                        "main", 
                        "rank_correlation.pdf"),
-       width = 183, height = 150,
+       width = 183, height = 200,
        units = "mm",
        bg = "white")
