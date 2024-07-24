@@ -1,6 +1,7 @@
 library(here)
 library(raster)
 library(sf)
+library(ade4)
 library(tidyverse)
 library(vegan)
 library(patchwork)
@@ -120,18 +121,12 @@ plot_nmds <- dat_grid %>%
   geom_raster(aes(fill = colour_col)) +
   scale_fill_identity() +
   geom_point(data = dat_nmds, 
-             shape = 21,
-             stroke = 0.2,
-             colour = "white") 
+             shape = 0, 
+             size = 0.5,
+             colour = "white", 
+             alpha = 0.1) +
+  theme_void()
 
-# save plot
-ggsave(plot_nmds,
-       filename = here("figures",
-                       "main",
-                       "compositional_map_nmds.pdf"),
-       width = 183, height = 100,
-       units = "mm",
-       bg = "white")
 
 # worldmap
 plot_world <- dat_nmds %>%
@@ -145,21 +140,126 @@ plot_world <- dat_nmds %>%
                   fill = colour_col)) +
   scale_fill_identity() +
   geom_sf(data = world_map_sf, col = NA, fill = "white", size = 0.1) +
-  labs(x = "Longitude", y = "Latitude") +
+  labs(x = "Longitude", y = "Latitude", 
+       title = "Taxonomic Similarity") +
   scale_x_continuous(breaks = seq(-180, 180, 30),
                      expand = c(0, 0)) +
   scale_y_continuous(breaks = seq(-90, 90, 30),
                      expand = c(0, 0)) +
   coord_sf(ylim = c(-87, 87)) +
-  theme(legend.position = "top")
+  theme(legend.position = "top") 
+
+# patch together
+plot_tax <- plot_world +
+  inset_element(plot_nmds, 
+                0.02, 0.1, 0.2, 0.4) 
 
 
+
+
+# same for functional richness --------------------------------------------
+
+# distance-trait matrix
+load(here("data", 
+          "distance_trait_matrix.RData"))
+
+# extract functional space axes
+dat_pcoa <- dudi.pco(quasieuclid(distance_trait_matrix),
+                 scannf = FALSE,
+                 nf = 4) %>% 
+  pluck("li") %>% 
+  # prepare pcoa for joining
+  as_tibble(rownames = "species")
+
+
+
+# list of all species present per grid 
+spp_per_grid <- apply(dat_presabs, 
+                      1, 
+                      function(x){colnames(dat_presabs)[which(x==1
+                      )]}) %>% 
+  # remove empty grids
+  compact()
+
+# calculate centroid of pcoa per cell
+dat_centroid <- spp_per_grid %>% 
+  map_dfr(~ .x %>%
+            enframe(value = "species",
+                    name = NULL) %>% 
+            distinct(species) %>% 
+            left_join(dat_pcoa, 
+                      by = join_by(species)) %>% 
+            summarise(A1 = mean(A1), 
+                      A2 = mean(A2)), 
+          .progress = TRUE) %>% 
+  # add coordinates
+  bind_cols(select(dat_presabs, contains("itude"))) %>% 
+  mutate(long_scld = (longitude_x - min(longitude_x ))/(max(longitude_x)-min(longitude_x )), 
+         lat_scld = (latitude_y - min(latitude_y ))/(max(latitude_y)-min(latitude_y)), 
+         colour_col = rgb(long_scld, lat_scld, 0.6, 1)) 
+
+# save data
+dat_centroid %>% 
+  write_rds(here("data", 
+                 "mds_score_functional.rds"))
+
+
+# create nmds grid
+dat_grid_func <- expand_grid(
+  A1 = seq(min(dat_centroid$A1), max(dat_centroid$A1), length.out = 100),
+  A2 = seq(min(dat_centroid$A2), max(dat_centroid$A2), length.out = 100)) %>% 
+  mutate(A1_scld = (A1 - min(A1 ))/(max(A1)-min(A1)), 
+         A2_scld = (A2 - min(A2 ))/(max(A2)-min(A2)), 
+         colour_col = rgb(A1_scld, A2_scld, 0.6, 1))
+
+# visualise nmds space
+plot_nmds_func <- dat_grid_func %>%
+  ggplot(aes(A1, A2)) +
+  geom_raster(aes(fill = colour_col)) +
+  scale_fill_identity() +
+  geom_point(data = dat_centroid, 
+             shape = 0, 
+             size = 0.5,
+             colour = "white", 
+             alpha = 0.1) +
+  theme_void()
+
+# worldmap
+plot_world_func <- dat_centroid %>%
+  mutate(A1_scld = (A1 - min(A1 ))/(max(A1)-min(A1 )), 
+         A2_scld = (A2 - min(A2 ))/(max(A2)-min(A2)), 
+         colour_col = rgb(A1_scld, A2_scld, 0.6, 1)) %>% 
+  # plot
+  ggplot() +
+  geom_raster(aes(x = longitude_x,
+                  y = latitude_y,
+                  fill = colour_col)) +
+  scale_fill_identity() +
+  geom_sf(data = world_map_sf, col = NA, fill = "white", size = 0.1) +
+  labs(x = "Longitude", y = "Latitude", 
+       title = "Functional Similarity") +
+  scale_x_continuous(breaks = seq(-180, 180, 30),
+                     expand = c(0, 0)) +
+  scale_y_continuous(breaks = seq(-90, 90, 30),
+                     expand = c(0, 0)) +
+  coord_sf(ylim = c(-87, 87)) +
+  theme(legend.position = "top") 
+
+# patch together
+plot_func <- plot_world_func +
+  inset_element(plot_nmds_func, 
+                0.02, 0.1, 0.2, 0.4) 
+
+# final plot
+plot_final <- plot_tax / 
+  plot_func +
+  plot_annotation(tag_levels = "a")
 
 # save plot
-ggsave(plot_world,
+ggsave(plot_final,
        filename = here("figures",
                        "main",
                        "compositional_map.pdf"),
-       width = 183, height = 100,
+       width = 183, height = 200,
        units = "mm",
        bg = "white")

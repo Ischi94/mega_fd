@@ -164,6 +164,33 @@ dat_local_metric %>%
   write_csv(here("data", 
                  "metric_variation_per_species.csv"))
 
+# 
+# # save rankings
+# list_fuse_local %>%
+#   compact() %>%
+#   map_dfr(~ .x %>%
+#             drop_na(FUSE_local) %>%
+#             arrange(desc(FUSE_local)) %>%
+#             slice_head(n = 5) %>%
+#             mutate(fuse_rank = row_number()) %>%
+#             select(species, fuse_rank)) %>%
+#   group_by(species) %>%
+#   summarise(local_rank = which.max(tabulate(fuse_rank)), 
+#             local_rank_min = min(fuse_rank), 
+#             local_rank_max = max(fuse_rank)) %>% 
+#   write_rds(here("data",
+#                  "ranking_variation_per_species.rds"))
+
+
+# same for un-summarized results
+list_fuse_local %>%
+  bind_rows(.id = "id") %>% 
+  left_join(tibble(id = unique(.$id), 
+                   latidude = dat_upscld$latitude_y[!map_lgl(list_fuse_local, is.null)], 
+                   longitude = dat_upscld$longitude_x[!map_lgl(list_fuse_local, is.null)])) %>% 
+  write_rds(here("data",
+                 "ranking_variation_per_species_umsummarized.rds"),
+            compress = "gz")
 
 
 

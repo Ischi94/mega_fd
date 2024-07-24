@@ -22,6 +22,10 @@ load(here("data",
 dat_fuse <- read_rds(here("data",
                           "fuse_metrics_per_spp.rds"))
 
+# local metric variation
+dat_var <- read_rds(here("data", 
+                         "ranking_variation_per_species_umsummarized.rds"))
+
 # merged presence-absence matrix
 dat_presabs <- read_rds(here("data",
                              "presabs_05_res.rds")) %>% 
@@ -150,7 +154,8 @@ dat_realm %>%
 # visualise rank-rank -----------------------------------------------------
 
 # fuse
-plot_fuse <- dat_realm %>%
+# plot_fuse <- 
+dat_realm %>%
   group_by(realm) %>% 
   arrange(desc(FUSE_local)) %>%
   mutate(local_rank = 1:n()) %>% 
@@ -207,70 +212,11 @@ ggsave(plot_fuse,
 
 # add rank-rank plot ------------------------------------------------------
 
-# first from local to global
-dat_loc_glob <- dat_realm %>% 
-  group_by(realm) %>% 
-  select(species, FUSE_local, realm) %>% 
-  arrange(desc(FUSE_local)) %>% 
-  slice_head(n = 5) %>% 
-  mutate("local_rank" = row_number()) %>%  
-  select(species, local_rank, realm) %>% 
-  left_join(dat_fuse %>%
-              arrange(desc(FUSE)) %>%
-              mutate(global_rank = row_number()) %>%
-              select(species, global_rank)) %>% 
-  mutate(local_rank = as.integer(local_rank)) %>% 
-  pivot_longer(cols = -c(species, realm),
-               names_to = "scale",
-               values_to = "rank") %>%
-  mutate(scale = as.integer(as.factor(scale))) %>% 
-  ungroup() %>% 
-  mutate(rank_log = log(rank))
 
-# visualise
-# plot_loc_glob <- 
-dat_loc_glob %>% 
-  ggplot(aes(x = scale,
-             y = rank_log)) +
-  geom_line(aes(group = species), 
-            colour = colour_grey) +
-  geom_text(aes(x = 0.7,
-                y = rank_log,
-                label = rank),
-            data = dat_loc_glob %>% 
-              filter(scale == 1),
-            size = 8/.pt) +
-  geom_text(aes(label = species),
-            data = dat_loc_glob %>%
-              filter(scale == 2),
-            size = 7/.pt,
-            hjust = 1,
-            position = position_nudge(x = -0.8)) +
-  labs(y = "FUSE rank",
-       x = NULL) +
-  scale_x_continuous(trans = "reverse",
-                     breaks = c(1, 4),
-                     labels = c("Global", "Local")) +
-  scale_y_reverse(breaks = NULL) +
-  coord_cartesian(xlim = c(6, 0.6)) +
-  facet_wrap(~ realm, 
-             scales = "free_y") +
-  theme(legend.position = "none",
-        panel.grid = element_blank())
-
-# save plot
-ggsave(plot_loc_glob, 
-       filename = here("figures",
-                       "main", 
-                       "7_rank_local_global.pdf"),
-       width = 183*1.2, height = 100*1.5,
-       units = "mm",
-       bg = "white")
-
-
-# same for global to local
+# global to province
 dat_glob_loc <- dat_fuse %>%
   arrange(desc(FUSE)) %>%
+  filter(species != "Tridacna gigas") %>% 
   slice_head(n = 5) %>%
   mutate(global_rank = row_number()) %>%
   select(species, global_rank) %>% 
@@ -287,45 +233,177 @@ dat_glob_loc <- dat_fuse %>%
   mutate(rank_log = log(rank))
 
 
-# visualise
-plot_glob_loc <- dat_glob_loc %>%
+
+# add local and plot using mode
+plot_mode <- dat_glob_loc %>%
+  bind_rows(read_rds(here("data",
+                          "ranking_variation_per_species.rds")) %>% 
+              mutate(scale = 3, rank = local_rank, rank_log = log(rank)) %>% 
+              select(species, scale, rank, rank_log) %>% 
+              right_join(dat_glob_loc %>% 
+                           distinct(species, realm))) %>% 
   ggplot(aes(x = scale,
              y = rank_log)) +
   geom_line(aes(group = interaction(species, realm), 
-                colour = realm), 
+                colour = species), 
             position = position_dodge(width = 0.1)) +
-  geom_text(aes(x = 2.3,
-                y = rank_log,
-                label = rank),
-            data = dat_glob_loc %>% 
-              filter(scale == 2) %>% 
-              distinct(scale, rank, rank_log),
+  geom_label(aes(x = scale, 
+                 y = rank_log, 
+                 label = rank),
+             position = position_dodge(width = 0.2), 
+            label.size = 0,
+            label.padding	= unit(0.4, "lines"),
+            label.r = unit(1, "lines"),
             size = 8/.pt) +
-  geom_text(aes(label = species),
+  geom_text(aes(label = species, 
+                colour = species),
             data = dat_glob_loc %>%
               filter(scale == 1) %>% 
               distinct(species, rank_log, scale),
-            size = 7/.pt,
+            size = 9/.pt,
             hjust = 1,
-            position = position_nudge(x = -0.5)) +
+            position = position_nudge(x = -0.2)) +
+  labs(y = NULL,
+       title = "FUSE rank",
+       x = NULL) +
+  scale_color_brewer(palette = "Set1", 
+                     na.translate = F, 
+                     name = NULL) +
+  scale_y_reverse(breaks = NULL) +
+  coord_cartesian(xlim = c(-0.01, 3)) +
+  scale_x_continuous(breaks = c(1, 2, 3),
+                     labels = c("Global", "Province", "Local")) +
+  theme(legend.position = "none",
+        legend.text = element_text(colour = "grey20", size = 7), 
+        legend.key.size = unit(3, "mm"),
+        panel.grid = element_blank(), 
+        plot.title = element_text(colour = "grey20", size = 10, 
+                                  face = "bold", 
+                                  hjust = 0.05))
+
+
+# use highest rank
+plot_high <- dat_glob_loc %>%
+  bind_rows(read_rds(here("data",
+                          "ranking_variation_per_species.rds")) %>% 
+              mutate(scale = 3, rank = local_rank_max, rank_log = log(rank)) %>% 
+              select(species, scale, rank, rank_log) %>% 
+              right_join(dat_glob_loc %>% 
+                           distinct(species, realm))) %>% 
+  ggplot(aes(x = scale,
+             y = rank_log)) +
+  geom_line(aes(group = interaction(species, realm), 
+                colour = species), 
+            position = position_dodge(width = 0.1)) +
+  geom_label(aes(x = scale, 
+                 y = rank_log, 
+                 label = rank),
+             label.size = 0,
+             label.padding	= unit(0.4, "lines"),
+             label.r = unit(1, "lines"),
+             size = 8/.pt) +
+  geom_text(aes(label = species, 
+                colour = species),
+            data = dat_glob_loc %>%
+              filter(scale == 1) %>% 
+              distinct(species, rank_log, scale),
+            size = 9/.pt,
+            hjust = 1,
+            position = position_nudge(x = -0.2)) +
   labs(y = "FUSE rank",
        x = NULL) +
-  scale_colour_discrete(na.translate = F, 
-                        name = NULL) +
+  scale_color_brewer(palette = "Set1", 
+                     na.translate = F, 
+                     name = NULL) +
   scale_y_reverse(breaks = NULL) +
-  coord_cartesian(xlim = c(-1, 3)) +
-  scale_x_continuous(breaks = c(1, 2),
-                     labels = c("Global", "Local")) +
-  theme(legend.position = "bottom",
+  coord_cartesian(xlim = c(-0.01, 3)) +
+  scale_x_continuous(breaks = c(1, 2, 3),
+                     labels = c("Global", "Province", "Local")) +
+  theme(legend.position = "none",
         legend.text = element_text(colour = "grey20", size = 7), 
         legend.key.size = unit(3, "mm"),
         panel.grid = element_blank())
+            
+
+
+
+# rank-rank correlation ---------------------------------------------------
+
+
+# per province rank-correlation
+plot_cor_prov <- dat_realm %>%
+  group_by(realm) %>%
+  summarise(FUn = cor(FUn_std_local, FUn_std, use = "complete.obs", method = "kendall"), 
+            FSp = cor(FSp_std_local, FSp_std, use = "complete.obs", method = "kendall")) %>% 
+  pivot_longer(cols = -realm, 
+               names_to = "metric", 
+               values_to = "correl") %>% 
+  left_join(tibble(lat = MEOW_sf %>%
+                     st_centroid() %>%
+                     st_coordinates() %>%
+                     .[, 2], 
+                   realm = MEOW_sf$REALM) %>% 
+              group_by(realm) %>% 
+              summarise(mean_lat = mean(lat))) %>% 
+  mutate(realm = fct_reorder(realm, mean_lat)) %>% 
+  ggplot(aes(correl, realm, 
+             fill = metric)) +
+  geom_point(shape = 21, 
+             colour = "grey20", 
+             size = 2) +
+  scale_fill_manual(values = c(colour_purple, 
+                               colour_yellow)) +
+  labs(y = NULL, 
+       x = expression(tau), 
+       fill = NULL, 
+       title = "Global-Province correlation") +
+  theme(legend.position = "bottom", 
+        plot.title = element_text(colour = "grey20", size = 10, 
+                                  face = "bold", 
+                                  hjust = -3.5))
+
+
+# per local cell rank-correlation
+plot_cor_loc <- dat_var %>%
+  left_join(dat_fuse %>% 
+              select(species, FUSE, 
+                     FUn_std, FSp_std)) %>% 
+  drop_na(FUn_std_local, FUn_std, FSp_std_local, FSp_std) %>% 
+  group_by(id) %>% 
+  summarise(FUn = cor(FUn_std_local, FUn_std, use = "complete.obs", method = "kendall"), 
+            FSp = cor(FSp_std_local, FSp_std, use = "complete.obs", method = "kendall")) %>% 
+  left_join(dat_var %>% 
+              distinct(id, latidude)) %>% 
+  pivot_longer(cols = -c(id, latidude), 
+               names_to = "metric", 
+               values_to = "correl") %>% 
+  ggplot(aes(correl, latidude, 
+             fill = metric)) +
+  geom_point(shape = 21, 
+             alpha = 0.1, 
+             colour = "grey20") +
+  scale_fill_manual(values = c(colour_purple, 
+                               colour_yellow)) +
+  labs(y = "Latitude", 
+       x = expression(tau), 
+       fill = NULL, 
+       title = "Global-Local correlation") +
+  theme(legend.position = "none", 
+        plot.title = element_text(colour = "grey20", size = 10, 
+                                  face = "bold", 
+                                  hjust = -0.6))
+
+
+# merge together
+plot_final <- free(plot_mode) /
+  (plot_cor_prov + plot_cor_loc) +
+  plot_layout(heights = c(2, 1))
 
 # save plot
-ggsave(plot_glob_loc, 
+ggsave(plot_final, 
        filename = here("figures",
                        "main", 
-                       "7_rank_global_local.pdf"),
-       width = 183, height = 100,
+                       "rank_correlation.pdf"),
+       width = 183, height = 150,
        units = "mm",
        bg = "white")

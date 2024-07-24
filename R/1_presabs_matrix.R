@@ -83,7 +83,7 @@ missing_spp %>%
   setdiff(., unique(dat_aqua$species)) # 10 species are missing
 
 # transform probabilities in 1-0 (pres-abs) data, 
-# based on a 50% probability threshold
+# based on a probability threshold
 dat_aqua <- dat_aqua %>% 
   select(CenterLat, CenterLong , Probability, species) %>%
   mutate(Probability  = replace(Probability, Probability > 0, 1)) %>%
