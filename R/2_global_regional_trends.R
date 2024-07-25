@@ -151,65 +151,6 @@ dat_realm %>%
                  "global_regional_trends.rds"))
   
 
-# visualise rank-rank -----------------------------------------------------
-
-# fuse
-# plot_fuse <- 
-dat_realm %>%
-  group_by(realm) %>% 
-  arrange(desc(FUSE_local)) %>%
-  mutate(local_rank = 1:n()) %>% 
-  arrange(desc(FUSE)) %>% 
-  mutate(global_rank = 1:n()) %>% 
-  ungroup() %>% 
-  mutate(local_rank = if_else(between(local_rank, 1, 10), 
-                              "local", 
-                              "none"), 
-         global_rank = if_else(between(global_rank, 1, 10), 
-                               "global", 
-                               "not"), 
-         local_rank = case_when(
-           local_rank == "local" ~ "local", 
-           local_rank == "none" & global_rank == "global" ~ "global", 
-           local_rank == "none" & global_rank == "not" ~ "bnothing"
-         )) %>% 
-  ggplot(aes(FUSE_local, FUSE)) +
-  geom_abline(intercept = 0,
-              slope = 1, 
-              linetype = "dotted",
-              colour = "grey50") +
-
-  geom_point(aes(fill = global_rank,
-                 colour = local_rank),
-             shape = 21,
-             alpha = 0.9,
-             stroke = 0.8,
-             size = 2) +
-  scale_fill_manual(values = c(colour_purple,
-                               "grey90")) +
-  scale_colour_manual(values = c("grey80",
-                                 colour_purple, 
-                                 colour_mint)) +
-  labs(y = "Global FUSE", 
-       x = "Regional FUSE") +
-  scale_y_continuous(breaks = c(0, 1, 2, 3), 
-                     labels = c("0", "1", "2", "3")) +
-  scale_x_continuous(breaks = c(0, 1, 2, 3), 
-                     labels = c("0", "1", "2", "3")) +
-  facet_wrap(~ realm) +
-  theme(legend.position = "none")
-
-# save plot
-ggsave(plot_fuse, 
-       filename = here("figures",
-                       "main", 
-                       "6_agreement_per_province.pdf"),
-       width = 183*1.2, height = 100,
-       units = "mm",
-       bg = "white")
-
-
-
 # add rank-rank plot ------------------------------------------------------
 
 
@@ -266,7 +207,7 @@ plot_mode <- dat_glob_loc %>%
   labs(y = NULL,
        title = "FUSE rank",
        x = NULL) +
-  scale_color_brewer(palette = "Set1", 
+  scale_color_brewer(palette = "Dark2", 
                      na.translate = F, 
                      name = NULL) +
   scale_y_reverse(breaks = NULL) +
@@ -334,8 +275,14 @@ plot_high <- dat_glob_loc %>%
 plot_cor_prov <- dat_realm %>%
   group_by(realm) %>%
   summarise(FUn = cor(FUn_std_local, FUn_std, use = "complete.obs", method = "kendall"), 
-            FSp = cor(FSp_std_local, FSp_std, use = "complete.obs", method = "kendall")) %>% 
-  pivot_longer(cols = -realm, 
+            FSp = cor(FSp_std_local, FSp_std, use = "complete.obs", method = "kendall"), 
+            nSp = n()) %>% 
+  bind_rows(dat_realm %>% 
+              summarise(FUn = cor(FUn_std_local, FUn_std, use = "complete.obs", method = "kendall"), 
+                        FSp = cor(FSp_std_local, FSp_std, use = "complete.obs", method = "kendall"), 
+                        nSp = n()) %>% 
+              add_column(realm = "Overall")) %>% 
+  pivot_longer(cols = -c(realm, nSp), 
                names_to = "metric", 
                values_to = "correl") %>% 
   left_join(tibble(lat = MEOW_sf %>%
@@ -344,20 +291,26 @@ plot_cor_prov <- dat_realm %>%
                      .[, 2], 
                    realm = MEOW_sf$REALM) %>% 
               group_by(realm) %>% 
-              summarise(mean_lat = mean(lat))) %>% 
+              summarise(mean_lat = mean(lat)) %>% 
+              add_row(realm = "Overall", 
+                      mean_lat = -80)) %>% 
   mutate(realm = fct_reorder(realm, mean_lat)) %>% 
+  mutate(shape_id = if_else(realm == "Overall", 23, 21)) %>% 
   ggplot(aes(correl, realm, 
-             fill = metric)) +
-  geom_point(shape = 21, 
-             colour = "grey20", 
-             size = 2) +
-  scale_fill_manual(values = c(colour_purple, 
+             fill = metric, 
+             size = nSp, 
+             shape = shape_id)) +
+  geom_point(colour = "grey20") +
+  scale_fill_manual(values = c(colour_purple,
                                colour_yellow)) +
+  scale_shape_identity() +
+  scale_size_continuous(guide = "none", 
+                        range = c(1, 6)) +
   labs(y = NULL, 
        x = expression(tau), 
        fill = NULL, 
        title = "Global-Province correlation") +
-  theme(legend.position = "bottom", 
+  theme(legend.position = "none", 
         plot.title = element_text(colour = "grey20", size = 10, 
                                   face = "bold", 
                                   hjust = -3.5))
@@ -371,27 +324,33 @@ plot_cor_loc <- dat_var %>%
   drop_na(FUn_std_local, FUn_std, FSp_std_local, FSp_std) %>% 
   group_by(id) %>% 
   summarise(FUn = cor(FUn_std_local, FUn_std, use = "complete.obs", method = "kendall"), 
-            FSp = cor(FSp_std_local, FSp_std, use = "complete.obs", method = "kendall")) %>% 
+            FSp = cor(FSp_std_local, FSp_std, use = "complete.obs", method = "kendall"), 
+            nSp = n()) %>% 
   left_join(dat_var %>% 
               distinct(id, latidude)) %>% 
-  pivot_longer(cols = -c(id, latidude), 
+  pivot_longer(cols = -c(id, latidude, nSp), 
                names_to = "metric", 
                values_to = "correl") %>% 
   ggplot(aes(correl, latidude, 
-             fill = metric)) +
+             fill = metric, 
+             size = nSp)) +
   geom_point(shape = 21, 
              alpha = 0.1, 
              colour = "grey20") +
   scale_fill_manual(values = c(colour_purple, 
                                colour_yellow)) +
+  scale_size_continuous(guide = "none", 
+                        range = c(0.8, 4)) +
   labs(y = "Latitude", 
        x = expression(tau), 
        fill = NULL, 
        title = "Global-Local correlation") +
-  theme(legend.position = "none", 
+  theme(legend.position = "bottom", 
         plot.title = element_text(colour = "grey20", size = 10, 
                                   face = "bold", 
-                                  hjust = -0.6))
+                                  hjust = -0.6)) +
+  guides(fill = guide_legend(override.aes = list(alpha = 1, 
+                                                 size = 2)))
 
 
 # merge together

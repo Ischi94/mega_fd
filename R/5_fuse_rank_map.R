@@ -47,6 +47,71 @@ dat_prop <- read_rds(here("data",
           "proportional_coverage.rds")) %>% 
   filter(cell_res == "1x1")
 
+# per province agreement 
+dat_realm <- read_rds(here("data",
+                           "global_regional_trends.rds"))
+
+# per province agreement --------------------------------------------------
+
+
+# fuse
+plot_fuse <- dat_realm %>%
+  group_by(realm) %>% 
+  arrange(desc(FUSE_local)) %>%
+  mutate(local_rank = 1:n()) %>% 
+  arrange(desc(FUSE)) %>% 
+  mutate(global_rank = 1:n()) %>% 
+  ungroup() %>% 
+  mutate(local_rank = if_else(between(local_rank, 1, 10), 
+                              "local", 
+                              "none"), 
+         global_rank = if_else(between(global_rank, 1, 10), 
+                               "global", 
+                               "not"), 
+         local_rank = case_when(
+           local_rank == "local" ~ "local", 
+           local_rank == "none" & global_rank == "global" ~ "global", 
+           local_rank == "none" & global_rank == "not" ~ "bnothing"
+         ))  %>% 
+  group_by(realm) %>% 
+  select(-contains(c("FUn", "FSp"))) %>% 
+  mutate(agreement = sum(local_rank == "local" & 
+                           global_rank == "global"),
+         agreement = str_c(agreement * 10, "%")) %>%  
+  ungroup() %>% 
+  ggplot(aes(FUSE_local, FUSE)) +
+  geom_abline(intercept = 0,
+              slope = 1, 
+              linetype = "dotted",
+              colour = "grey50") +
+  geom_point(aes(fill = global_rank,
+                 colour = local_rank),
+             shape = 21,
+             alpha = 0.9,
+             stroke = 1,
+             size = 2) +
+  geom_text(aes(x = 2, y = 0.3, 
+                label = agreement), 
+            size = 10/.pt,
+            colour = "grey20",
+            data = . %>% distinct(realm, agreement)) +
+  scale_fill_manual(values = c("#7570b3",
+                               "grey90")) +
+  scale_colour_manual(values = c("grey80",
+                                 "#7570b3", 
+                                 "#d95f02")) +
+  labs(y = "Global FUSE", 
+       x = "Provincial FUSE", 
+       title = "Global-Province Agreement") +
+  scale_y_continuous(breaks = c(0, 1, 2, 3), 
+                     labels = c("0", "1", "2", "3")) +
+  scale_x_continuous(breaks = c(0, 1, 2, 3), 
+                     labels = c("0", "1", "2", "3")) +
+  facet_wrap(~ realm) +
+  theme(legend.position = "none")
+
+
+
 # assign coordinates -----------------------------------------------
 
 # take presence absence matrix with 0.5x0.5 resolution and 
@@ -103,78 +168,89 @@ plot_map <-dat_map %>%
                        na.value = "white",
                        breaks = c(0, 0.2, 0.4),
                        labels = c("0%", "20%", "40%"),
-                       name = "FUSE\nGlobal-local \nagreement ") +
+                       name = NULL) +
   geom_sf(data = world_map_sf, col = NA, fill = "white", size = 0.1) +
-  labs(x = "Longitude", y = "Latitude") +
+  labs(x = "Longitude", y = "Latitude", 
+       title = "Global-Local Agreement") +
   scale_x_continuous(breaks = seq(-180, 180, 30),
                      expand = c(0, 0)) +
   scale_y_continuous(breaks = seq(-90, 90, 30),
                      expand = c(0, 0)) +
   coord_sf(ylim = c(-87, 87)) +
-  theme(legend.position = "top")
+  theme(legend.position = "right", 
+        plot.title = element_text(colour = "grey20", size = 10, 
+                                  face = "bold", 
+                                  hjust = -0.13))
 
 
-# save plot
-ggsave(plot_map,
-       filename = here("figures",
-                       "main",
-                       "agreement_map.pdf"),
-       width = 183, height = 100,
-       units = "mm",
-       bg = "white")
-
-# metrices per grid ------------------------------------------------
-
-# read in metrices and summarise per latitude
-dat_metrics <- read_rds(here("data",
-                             "functional_metrics.rds")) %>% 
-  group_by(latitude_y) %>% 
-  summarise(across(c(spR, FRic, fuse, uniq, special), mean)) %>% 
-  mutate(across(c(spR, FRic, fuse, uniq, special), ~scale(.x))) %>% 
-  pivot_longer(cols = -latitude_y, 
-               names_to = "metric") 
-
-
-plot_latid <- dat_metrics %>%
-  ggplot(aes(value, latitude_y, 
-             colour = metric)) +
-  geom_path(linewidth = 0.5) +
-  geom_path(data = dat_map %>% 
-              group_by(latitude_y) %>% 
-              summarise(value = mean(fuse_prop, 
-                                     na.rm = TRUE)) %>% 
-              mutate(value = scale(value)) %>% 
-              add_column(metric = "fuse_prop"), 
-            linewidth = 1.1, 
-            colour = "grey10") +
-  scale_color_manual(values = c(colour_coral, 
-                                colour_mint, 
-                                colour_yellow, 
-                                colour_purple, 
-                                "brown"), 
-                     labels = c("FRic", "FUSE", "FSp", 
-                                "SR", "FUn"),
-                     name = "Metric") +
-  annotate(size = 10/.pt, 
-           "text", 
-           label = "FUSE\nGlobal-local \nagreement", 
-           x = 1.5, 
-           y = -35) +
-  labs(y = "Latitude", 
-       x = "Z-score") +
-  theme(legend.position = c(0.9, 0.5))
-
-# patch together
-plot_final <- plot_map/ plot_latid
+# patch together 
+plot_final <- free(plot_fuse) /
+  free(plot_map) +
+  plot_layout(heights = c(1.3, 1))
 
 # save plot
 ggsave(plot_final,
        filename = here("figures",
                        "main",
-                       "5_agreement_map.pdf"),
-       width = 183, height = 100*2,
+                       "FUSE_agreement.pdf"),
+       width = 200, height = 200,
        units = "mm",
        bg = "white")
+
+
+
+# # metrices per grid ------------------------------------------------
+# 
+# # read in metrices and summarise per latitude
+# dat_metrics <- read_rds(here("data",
+#                              "functional_metrics.rds")) %>% 
+#   group_by(latitude_y) %>% 
+#   summarise(across(c(spR, FRic, fuse, uniq, special), mean)) %>% 
+#   mutate(across(c(spR, FRic, fuse, uniq, special), ~scale(.x))) %>% 
+#   pivot_longer(cols = -latitude_y, 
+#                names_to = "metric") 
+# 
+# 
+# plot_latid <- dat_metrics %>%
+#   ggplot(aes(value, latitude_y, 
+#              colour = metric)) +
+#   geom_path(linewidth = 0.5) +
+#   geom_path(data = dat_map %>% 
+#               group_by(latitude_y) %>% 
+#               summarise(value = mean(fuse_prop, 
+#                                      na.rm = TRUE)) %>% 
+#               mutate(value = scale(value)) %>% 
+#               add_column(metric = "fuse_prop"), 
+#             linewidth = 1.1, 
+#             colour = "grey10") +
+#   scale_color_manual(values = c(colour_coral, 
+#                                 colour_mint, 
+#                                 colour_yellow, 
+#                                 colour_purple, 
+#                                 "brown"), 
+#                      labels = c("FRic", "FUSE", "FSp", 
+#                                 "SR", "FUn"),
+#                      name = "Metric") +
+#   annotate(size = 10/.pt, 
+#            "text", 
+#            label = "FUSE\nGlobal-local \nagreement", 
+#            x = 1.5, 
+#            y = -35) +
+#   labs(y = "Latitude", 
+#        x = "Z-score") +
+#   theme(legend.position = c(0.9, 0.5))
+# 
+# # patch together
+# plot_final <- plot_map/ plot_latid
+# 
+# # save plot
+# ggsave(plot_final,
+#        filename = here("figures",
+#                        "main",
+#                        "5_agreement_map.pdf"),
+#        width = 183, height = 100*2,
+#        units = "mm",
+#        bg = "white")
 # 
 # # computes species richness and functional richness per grid cell
 # fd_metrics <- spp_per_grid %>% 
