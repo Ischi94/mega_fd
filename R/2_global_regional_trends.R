@@ -56,6 +56,18 @@ dat_iucn <- read_csv(here("data",
                           "megafauna_traits.csv")) %>%
   select(species, higher_classification, IUCN)
 
+# global distinctiveness
+dist_glob <- read_rds(here("data",
+                           "global_distinctiveness.rds"))
+
+# provincial distinctiveness
+dist_prov <- read_rds(here("data", 
+                           "provincial_distinctiveness.rds"))
+
+# local distinctiveness.
+dist_local <- read_rds(here("data", 
+                           "local_distinctiveness.rds"))
+
 # metrics per realm ----------------------------------------------------------
 
 # assign grid cells to realms 
@@ -193,9 +205,11 @@ plot_mode <- dat_glob_loc %>%
                  label = rank),
              position = position_dodge(width = 0.2), 
             label.size = 0,
-            label.padding	= unit(0.4, "lines"),
+            label.padding	= unit(0.5, "lines"),
             label.r = unit(1, "lines"),
-            size = 8/.pt) +
+            size = 8/.pt, 
+            data = . %>%  
+              filter(rank %in% c(1:5, 7, 9, 11, 15, 18, 28))) +
   geom_text(aes(label = species, 
                 colour = species),
             data = dat_glob_loc %>%
@@ -207,7 +221,11 @@ plot_mode <- dat_glob_loc %>%
   labs(y = NULL,
        title = "FUSE rank",
        x = NULL) +
-  scale_color_brewer(palette = "Dark2", 
+  scale_color_manual(values = c(colour_coral, 
+                                "#8D4D5A", 
+                                colour_mint, 
+                                "#CDA25D", 
+                                "#FF8043"), 
                      na.translate = F, 
                      name = NULL) +
   scale_y_reverse(breaks = NULL) +
@@ -240,9 +258,11 @@ plot_high <- dat_glob_loc %>%
                  y = rank_log, 
                  label = rank),
              label.size = 0,
-             label.padding	= unit(0.4, "lines"),
+             label.padding	= unit(0.45, "lines"),
              label.r = unit(1, "lines"),
-             size = 8/.pt) +
+             size = 8/.pt, 
+             data = . %>%  
+               filter(rank %in% c(1:5, 7, 9, 11, 15, 18, 28))) +
   geom_text(aes(label = species, 
                 colour = species),
             data = dat_glob_loc %>%
@@ -253,7 +273,11 @@ plot_high <- dat_glob_loc %>%
             position = position_nudge(x = -0.2)) +
   labs(y = "FUSE rank",
        x = NULL) +
-  scale_color_brewer(palette = "Set1", 
+  scale_color_manual(values = c(colour_coral, 
+                                "#8D4D5A", 
+                                colour_mint, 
+                                "#CDA25D", 
+                                "#FF8043"), 
                      na.translate = F, 
                      name = NULL) +
   scale_y_reverse(breaks = NULL) +
@@ -273,13 +297,21 @@ plot_high <- dat_glob_loc %>%
 
 # per province rank-correlation
 plot_cor_prov <- dat_realm %>%
+  left_join(dist_glob %>% 
+              full_join(dist_prov %>% 
+                          rename(prov_di = global_di))) %>% 
   group_by(realm) %>%
   summarise(FUn = cor(FUn_std_local, FUn_std, use = "complete.obs", method = "kendall"), 
             FSp = cor(FSp_std_local, FSp_std, use = "complete.obs", method = "kendall"), 
+            FDi = cor(prov_di, global_di, use = "complete.obs", method = "kendall"),
             nSp = n()) %>% 
   bind_rows(dat_realm %>% 
+              left_join(dist_glob %>% 
+                          full_join(dist_prov %>% 
+                                      rename(prov_di = global_di))) %>% 
               summarise(FUn = cor(FUn_std_local, FUn_std, use = "complete.obs", method = "kendall"), 
-                        FSp = cor(FSp_std_local, FSp_std, use = "complete.obs", method = "kendall"), 
+                        FSp = cor(FSp_std_local, FSp_std, use = "complete.obs", method = "kendall"),
+                        FDi = cor(prov_di, global_di, use = "complete.obs", method = "kendall"),
                         nSp = n()) %>% 
               add_column(realm = "Overall")) %>% 
   pivot_longer(cols = -c(realm, nSp), 
@@ -302,6 +334,7 @@ plot_cor_prov <- dat_realm %>%
              shape = shape_id)) +
   geom_point(colour = "grey20") +
   scale_fill_manual(values = c(colour_purple,
+                               colour_mint,
                                colour_yellow)) +
   scale_shape_identity() +
   scale_size_continuous(guide = "none", 
@@ -321,10 +354,15 @@ plot_cor_loc <- dat_var %>%
   left_join(dat_fuse %>% 
               select(species, FUSE, 
                      FUn_std, FSp_std)) %>% 
-  drop_na(FUn_std_local, FUn_std, FSp_std_local, FSp_std) %>% 
+  left_join(dist_glob %>% 
+              full_join(dist_local %>% 
+                          rename(local_di = global_di)) %>% 
+              select(-contains("itude"))) %>% 
+  drop_na(FUn_std_local, FUn_std, FSp_std_local, FSp_std, global_di, local_di) %>% 
   group_by(id) %>% 
   summarise(FUn = cor(FUn_std_local, FUn_std, use = "complete.obs", method = "kendall"), 
-            FSp = cor(FSp_std_local, FSp_std, use = "complete.obs", method = "kendall"), 
+            FSp = cor(FSp_std_local, FSp_std, use = "complete.obs", method = "kendall"),
+            FDi = cor(local_di, global_di, use = "complete.obs", method = "kendall"),
             nSp = n()) %>% 
   left_join(dat_var %>% 
               distinct(id, latidude)) %>% 
@@ -337,7 +375,8 @@ plot_cor_loc <- dat_var %>%
   geom_point(shape = 21, 
              alpha = 0.1, 
              colour = "grey20") +
-  scale_fill_manual(values = c(colour_purple, 
+  scale_fill_manual(values = c(colour_purple,
+                               colour_mint,
                                colour_yellow)) +
   scale_size_continuous(guide = "none", 
                         range = c(0.8, 4)) +
@@ -345,12 +384,14 @@ plot_cor_loc <- dat_var %>%
        x = expression(tau), 
        fill = NULL, 
        title = "Global-Local correlation") +
-  theme(legend.position = "bottom", 
+  theme(legend.position = c(-0.2, -0.12), 
+        legend.direction = "horizontal",
         plot.title = element_text(colour = "grey20", size = 10, 
                                   face = "bold", 
                                   hjust = -0.6)) +
   guides(fill = guide_legend(override.aes = list(alpha = 1, 
-                                                 size = 2)))
+                                                 size = 2), 
+                             reverse = TRUE))
 
 
 # merge together

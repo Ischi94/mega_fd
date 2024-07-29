@@ -51,64 +51,84 @@ dat_prop <- read_rds(here("data",
 dat_realm <- read_rds(here("data",
                            "global_regional_trends.rds"))
 
+# global distinctiveness
+dist_glob <- read_rds(here("data",
+                           "global_distinctiveness.rds"))
+
+# provincial distinctiveness
+dist_prov <- read_rds(here("data", 
+                           "provincial_distinctiveness.rds"))
+
+
 # per province agreement --------------------------------------------------
 
 
-# fuse
-plot_fuse <- dat_realm %>%
-  group_by(realm) %>% 
-  arrange(desc(FUSE_local)) %>%
-  mutate(local_rank = 1:n()) %>% 
-  arrange(desc(FUSE)) %>% 
-  mutate(global_rank = 1:n()) %>% 
-  ungroup() %>% 
-  mutate(local_rank = if_else(between(local_rank, 1, 10), 
-                              "local", 
-                              "none"), 
-         global_rank = if_else(between(global_rank, 1, 10), 
-                               "global", 
-                               "not"), 
-         local_rank = case_when(
-           local_rank == "local" ~ "local", 
-           local_rank == "none" & global_rank == "global" ~ "global", 
-           local_rank == "none" & global_rank == "not" ~ "bnothing"
-         ))  %>% 
-  group_by(realm) %>% 
-  select(-contains(c("FUn", "FSp"))) %>% 
-  mutate(agreement = sum(local_rank == "local" & 
-                           global_rank == "global"),
-         agreement = str_c(agreement * 10, "%")) %>%  
-  ungroup() %>% 
-  ggplot(aes(FUSE_local, FUSE)) +
-  geom_abline(intercept = 0,
-              slope = 1, 
-              linetype = "dotted",
-              colour = "grey50") +
-  geom_point(aes(fill = global_rank,
-                 colour = local_rank),
-             shape = 21,
-             alpha = 0.9,
-             stroke = 1,
-             size = 2) +
-  geom_text(aes(x = 2, y = 0.3, 
-                label = agreement), 
-            size = 10/.pt,
-            colour = "grey20",
-            data = . %>% distinct(realm, agreement)) +
-  scale_fill_manual(values = c("#7570b3",
-                               "grey90")) +
-  scale_colour_manual(values = c("grey80",
-                                 "#7570b3", 
-                                 "#d95f02")) +
-  labs(y = "Global FUSE", 
-       x = "Provincial FUSE", 
-       title = "Global-Province Agreement") +
-  scale_y_continuous(breaks = c(0, 1, 2, 3), 
-                     labels = c("0", "1", "2", "3")) +
-  scale_x_continuous(breaks = c(0, 1, 2, 3), 
-                     labels = c("0", "1", "2", "3")) +
-  facet_wrap(~ realm) +
-  theme(legend.position = "none")
+get_agreement <- function(local_metr, global_metr,
+                          title_metr, legend_pos) {
+  
+  dat_realm %>%
+    left_join(dist_glob %>% 
+                full_join(dist_prov %>% 
+                            rename(prov_di = global_di))) %>% 
+    group_by(realm) %>% 
+    arrange(desc(!!enquo(local_metr))) %>%
+    mutate(local_rank = 1:n()) %>% 
+    arrange(desc(!!enquo(global_metr))) %>% 
+    mutate(global_rank = 1:n()) %>% 
+    ungroup() %>% 
+    mutate(local_rank = if_else(between(local_rank, 1, 10), 
+                                "local", 
+                                "none"), 
+           global_rank = if_else(between(global_rank, 1, 10), 
+                                 "global", 
+                                 "not"), 
+           local_rank = case_when(
+             local_rank == "local" ~ "local", 
+             local_rank == "none" & global_rank == "global" ~ "global", 
+             local_rank == "none" & global_rank == "not" ~ "bnothing"
+           )) %>% 
+    ggplot(aes(!!enquo(local_metr), !!enquo(global_metr))) +
+    geom_abline(intercept = 0,
+                slope = 1, 
+                linetype = "dotted",
+                colour = "grey20") +
+    geom_point(aes(fill = interaction(local_rank, global_rank), 
+                   size = interaction(local_rank, global_rank)),
+               colour = "grey60",
+               shape = 21,
+               stroke = 0.3) +
+    scale_fill_manual(values = c("grey20", "#2F899D", 
+                                 colour_coral, "white"), 
+                      breaks = c("local.global", "global.global", "local.not", "bnothing.not"),
+                      labels = c("Shared", "Global", "Local", " ")) +
+    scale_size_manual(values = c(2.2, 1.4, 1.4, 1.4), 
+                      breaks = c("local.global", "global.global", "local.not", "bnothing.not"),
+                      guide = "none") +
+    labs(y = "Global", 
+         x = "Provincial", 
+         fill = "10 highest species",
+         title = title_metr) +
+    scale_y_continuous(breaks = seq(0, 1, by = 0.2)) +
+    scale_x_continuous(breaks = seq(0, 1, by = 0.2)) +
+    theme(legend.position = legend_pos) +
+    guides(fill = guide_legend( 
+      override.aes = list(colour = "white", 
+                          size = 2.5)))
+  
+}
+
+
+# specialisation
+plot_FSp <- get_agreement(FSp_std_local, FSp_std, "FSp", "none")
+
+# distinctiveness
+plot_FDi <- get_agreement(prov_di, global_di, "FDi", "bottom")
+
+# uniqueness
+plot_FUn <- get_agreement(FUn_std_local, FUn_std, "FUn", "none")
+
+# patch together
+plot_province <- plot_FSp + plot_FDi + plot_FUn
 
 
 
@@ -155,7 +175,7 @@ dat_map <- dat_1x1[!empty_cells, c(1, 2)] %>%
 # visualise  --------------------------------------------------------------
 
 # create map
-plot_map <-dat_map %>%
+plot_map <- dat_map %>%
   # plot
   ggplot() +
   geom_raster(aes(x = longitude_x,
@@ -167,11 +187,10 @@ plot_map <-dat_map %>%
                        high = colour_yellow,
                        na.value = "white",
                        breaks = c(0, 0.2, 0.4),
-                       labels = c("0%", "20%", "40%"),
-                       name = NULL) +
+                       labels = c("0%", "20%", "40%")) +
   geom_sf(data = world_map_sf, col = NA, fill = "white", size = 0.1) +
   labs(x = "Longitude", y = "Latitude", 
-       title = "Global-Local Agreement") +
+       fill = "Global-Local\nFUSE\nAgreement") +
   scale_x_continuous(breaks = seq(-180, 180, 30),
                      expand = c(0, 0)) +
   scale_y_continuous(breaks = seq(-90, 90, 30),
@@ -184,9 +203,8 @@ plot_map <-dat_map %>%
 
 
 # patch together 
-plot_final <- free(plot_fuse) /
-  free(plot_map) +
-  plot_layout(heights = c(1.3, 1))
+plot_final <- free(plot_province) /
+  free(plot_map)
 
 # save plot
 ggsave(plot_final,

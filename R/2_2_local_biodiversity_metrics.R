@@ -94,22 +94,22 @@ spp_per_grid <- apply(dat_upscld,
 # set up empty list
 list_fuse_local <- vector(mode = "list", length = nrow(dat_upscld))
 
-# loop through realms
+# loop through cells
 for (i in 1:length(spp_per_grid)) {
   
-  # get species pool per realm 
+  # get species pool per cell 
   spp_per_cell <- spp_per_grid[[i]] %>%
     enframe(value = "species",
             name = NULL) %>% 
     distinct(species)  
   
-  # subset distance trait matrix to realm species pool
+  # subset distance trait matrix to cell species pool
   spec_to_keep <- distance_trait_matrix %>%
     as.matrix() %>%
     rownames() %in% spp_per_cell$species
   dist_mat_realm <- as.matrix(distance_trait_matrix)[spec_to_keep, spec_to_keep]
   
-  # subset trait space to realm species pool
+  # subset trait space to cell species pool
   pcoa_realm <- na.omit(pcoa[spp_per_cell$species, ]) 
   
   
