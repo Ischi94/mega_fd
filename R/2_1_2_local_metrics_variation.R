@@ -2,6 +2,7 @@ library(here)
 library(sf)
 library(raster)
 library(ade4)
+library(funrar)
 library(patchwork)
 library(tidyverse)
 
@@ -142,7 +143,10 @@ for (i in 1:length(spp_per_grid)) {
     arrange(species) %>%
     select(species, FUSE, FUn_std, FSp_std) %>% 
     rename_with(.cols = -species, 
-                .fn = ~ paste0(.x, "_local"))
+                .fn = ~ paste0(.x, "_local")) %>% 
+    # compute distinctiveness
+    left_join(as_tibble(distinctiveness_global(dist_mat_realm)), 
+              by = join_by(species))
   
   print(i)
 }
@@ -181,24 +185,24 @@ dat_local_metric %>%
 #   write_rds(here("data",
 #                  "ranking_variation_per_species.rds"))
 
+ 
+# # same for un-summarized results
+# list_fuse_local %>%
+#   bind_rows(.id = "id") %>% 
+#   left_join(tibble(id = unique(.$id), 
+#                    latidude = dat_upscld$latitude_y[!map_lgl(list_fuse_local, is.null)], 
+#                    longitude = dat_upscld$longitude_x[!map_lgl(list_fuse_local, is.null)])) %>% 
+#   write_rds(here("data",
+#                  "ranking_variation_per_species_umsummarized.rds"),
+#             compress = "gz")
 
-# same for un-summarized results
-list_fuse_local %>%
-  bind_rows(.id = "id") %>% 
-  left_join(tibble(id = unique(.$id), 
-                   latidude = dat_upscld$latitude_y[!map_lgl(list_fuse_local, is.null)], 
-                   longitude = dat_upscld$longitude_x[!map_lgl(list_fuse_local, is.null)])) %>% 
-  write_rds(here("data",
-                 "ranking_variation_per_species_umsummarized.rds"),
-            compress = "gz")
 
 
 
 # create plots ------------------------------------------------------------
 
 # set up function to create visuals for selected species
-create_plot <- function(sel_species, 
-                        lat_buffer) {
+create_plot <- function(sel_species) {
   
   # select species and coordinates
   dat_sp <- bind_rows(list_fuse_local) %>%
@@ -211,28 +215,31 @@ create_plot <- function(sel_species,
   # create maps of variation
   list_maps <- dat_sp %>%
     colnames() %>%
-    .[2:4] %>%
+    .[3:5] %>%
     map2(.x = .,
-         .y = c("FUSE", "FUn", "FSp"),
+         .y = c("FUn", "FSp", "FDi"),
          .f = ~ dat_sp %>%
            ggplot() +
            geom_raster(aes(x = longitude_x,
                            y = latitude_y,
                            fill = !!sym(.x))) +
-           geom_sf(data = world_map_sf, col = NA, fill = "white", size = 0.1) +
-           scale_fill_gradientn(colours = rev(RColorBrewer::brewer.pal(10,"RdBu")),
+           geom_sf(data = world_map_sf, col = NA, fill = "grey90", size = 0.1) +
+           scale_fill_gradient2(low = colour_mint,
+                                mid = colour_purple,
+                                high = colour_yellow, 
+                                midpoint = 0.5,
                                 name = .y) +
            labs(x = "Longitude", y = "Latitude") +
-           coord_sf(xlim = c(min(dat_sp$longitude_x)-5, max(dat_sp$longitude_x)+5),
-                    ylim = c(min(dat_sp$latitude_y)-5, max(dat_sp$latitude_y)+lat_buffer), 
+           coord_sf(xlim = c(min(dat_sp$longitude_x), max(dat_sp$longitude_x)),
+                    ylim = c(min(dat_sp$latitude_y), max(dat_sp$latitude_y)), 
                     expand = FALSE))
 
   # create functional space plots
   list_spaces <- list(max, min) %>%
     map2(.x = ., 
-         .y = c(RColorBrewer::brewer.pal(10, "RdBu")[1], 
-                RColorBrewer::brewer.pal(10,"RdBu")[10]), 
-         .f = ~ dat_sp %>%
+         .y = c("Highest FUSE cell", 
+                "Lowest FUSE cell"),
+        .f = ~ dat_sp %>%
           filter(FUSE_local == .x(FUSE_local, na.rm = TRUE)) %>%
           slice_head(n = 1) %>%
           { filter(dat_upscld,
@@ -252,6 +259,7 @@ create_plot <- function(sel_species,
                                      "yes", "no"),
                  A1_center = mean(A1),
                  A2_center = mean(A2)) %>%
+          arrange(colour_id) %>% 
           ggplot(aes(A1, A2)) +
           geom_polygon(fill = NA,
                        colour = "grey20",
@@ -269,9 +277,9 @@ create_plot <- function(sel_species,
           scale_fill_manual(values = c(colour_grey, colour_coral)) +
           labs(x = "PCoA1",
                y = "PCoA2",
+               title = .y,
                colour = NULL) +
-          theme(legend.position = "none", 
-                plot.background = element_rect(colour = .y))
+          theme(legend.position = "none")
     )
 
   # combine plots
@@ -283,46 +291,42 @@ create_plot <- function(sel_species,
 # identify most varying species
 dat_local_metric %>% 
   arrange(desc(FUSE_sd)) %>% 
-  select(species)
+  select(species) 
 
-# sturgeon
-plot_list_stella <- create_plot("Acipenser stellatus", 
-                                lat_buffer = 5)
+
+# porbeagle
+plot_list_porb <- create_plot("Lamna nasus")
 
 # patch together
-plot_stella <- plot_list_stella[[1]] +
-  inset_element(plot_list_stella[[4]], 
-                0.1, 0.6, 0.5, 1) +
-  inset_element(plot_list_stella[[5]], 
-                0.6, 0.6, 1, 1) +
-  plot_annotation(tag_levels = "a")
+plot_porb <- free(plot_list_porb[[1]]) /
+  free(plot_list_porb[[2]]) / 
+  free(plot_list_porb[[3]]) / 
+  (free(plot_list_porb[[4]]) + free(plot_list_porb[[5]]))
 
-# save
-ggsave(plot_stella, 
+# save plot
+ggsave(plot_porb, 
        filename = here("figures",
-                       "main",
-                       "8_sturgeon_variation.pdf"),
-       width = 183, height = 100*2,
+                       "main", 
+                       "porbeagle_space.pdf"),
+       width = 183, height = 200,
        units = "mm",
        bg = "white")
 
-# green sea turtle
-plot_list_mydas <- create_plot("Chelonia mydas", 
-                               lat_buffer = 80) 
+
+# blue whale
+plot_list_bwhale <- create_plot("Balaenoptera musculus")
 
 # patch together
-plot_mydas <- plot_list_mydas[[1]] +
-  inset_element(plot_list_mydas[[4]], 
-                0.1, 0.6, 0.5, 1) +
-  inset_element(plot_list_mydas[[5]], 
-                0.6, 0.6, 1, 1) +
-  plot_annotation(tag_levels = "a")
+plot_bwhale <- free(plot_list_bwhale[[1]]) /
+  free(plot_list_bwhale[[2]]) / 
+  free(plot_list_bwhale[[3]]) / 
+  (free(plot_list_bwhale[[4]]) + free(plot_list_bwhale[[5]]))
 
-# save
-ggsave(plot_mydas, 
+# save plot
+ggsave(plot_bwhale, 
        filename = here("figures",
-                       "main",
-                       "9_gs_turtle_variation.pdf"),
-       width = 183, height = 100*2,
+                       "main", 
+                       "blue_whale_space.pdf"),
+       width = 183, height = 200,
        units = "mm",
        bg = "white")
