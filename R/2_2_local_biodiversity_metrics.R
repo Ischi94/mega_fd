@@ -86,7 +86,7 @@ dat_upscld <- dat_rast_agg %>%
 # list of all species present per grid 
 spp_per_grid <- apply(dat_upscld, 
                       1, 
-                      function(x){colnames(dat_presabs)[which(x==1
+                      function(x){colnames(dat_upscld)[which(x==1
                       )]}) %>% 
   # remove empty grids
   compact()
