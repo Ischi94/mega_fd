@@ -59,6 +59,9 @@ dist_glob <- read_rds(here("data",
 dist_prov <- read_rds(here("data", 
                            "provincial_distinctiveness.rds"))
 
+# fuse metrics
+dat_fuse <- read_rds(here("data",
+                          "fuse_metrics_per_spp.rds"))
 
 # per province agreement --------------------------------------------------
 
@@ -122,7 +125,7 @@ get_agreement <- function(local_metr, global_metr,
 plot_FSp <- get_agreement(FSp_std_local, FSp_std, "FSp", "none")
 
 # distinctiveness
-plot_FDi <- get_agreement(prov_di, global_di, "FDi", "bottom")
+plot_FDi <- get_agreement(prov_di, global_di, "FDi", "top")
 
 # uniqueness
 plot_FUn <- get_agreement(FUn_std_local, FUn_std, "FUn", "none")
@@ -131,6 +134,80 @@ plot_FUn <- get_agreement(FUn_std_local, FUn_std, "FUn", "none")
 plot_province <- plot_FSp + plot_FDi + plot_FUn
 
 
+# add rank-rank plot ------------------------------------------------------
+
+
+# global to province
+dat_glob_loc <- dat_fuse %>%
+  arrange(desc(FUSE)) %>%
+  filter(species != "Tridacna gigas") %>% 
+  slice_head(n = 5) %>%
+  mutate(global_rank = row_number()) %>%
+  select(species, global_rank) %>% 
+  left_join(dat_realm %>% 
+              group_by(realm) %>% 
+              select(species, FUSE_local, realm) %>% 
+              arrange(desc(FUSE_local)) %>% 
+              mutate("local_rank" = row_number()) %>%  
+              select(species, local_rank, realm)) %>% 
+  pivot_longer(cols = -c(species, realm),
+               names_to = "scale",
+               values_to = "rank") %>%
+  mutate(scale = as.integer(as.factor(scale))) %>% 
+  mutate(rank_log = log(rank))
+
+
+# add local and plot using mode
+plot_mode <- dat_glob_loc %>%
+  bind_rows(read_rds(here("data",
+                          "ranking_variation_per_species.rds")) %>% 
+              mutate(scale = 3, rank = local_rank, rank_log = log(rank)) %>% 
+              select(species, scale, rank, rank_log) %>% 
+              right_join(dat_glob_loc %>% 
+                           distinct(species, realm))) %>% 
+  ggplot(aes(x = scale,
+             y = rank_log)) +
+  geom_line(aes(group = interaction(species, realm), 
+                colour = species), 
+            position = position_dodge(width = 0.1)) +
+  geom_label(aes(x = scale, 
+                 y = rank_log, 
+                 label = rank),
+             position = position_dodge(width = 0.2), 
+             label.size = 0,
+             label.padding	= unit(0.5, "lines"),
+             label.r = unit(1, "lines"),
+             size = 8/.pt, 
+             data = . %>%  
+               filter(rank %in% c(1:5, 7, 9, 11, 15, 18, 28))) +
+  geom_text(aes(label = species, 
+                colour = species),
+            data = dat_glob_loc %>%
+              filter(scale == 1) %>% 
+              distinct(species, rank_log, scale),
+            size = 9/.pt,
+            hjust = 1,
+            position = position_nudge(x = -0.2)) +
+  labs(y = "FUSE rank",
+       # title = "FUSE rank",
+       x = NULL) +
+  scale_color_manual(values = c(colour_coral, 
+                                "#8D4D5A", 
+                                colour_mint, 
+                                "#CDA25D", 
+                                "#FF8043"), 
+                     na.translate = F, 
+                     name = NULL) +
+  scale_y_reverse(breaks = NULL) +
+  coord_cartesian(xlim = c(-0.01, 3)) +
+  scale_x_continuous(breaks = c(1, 2, 3),
+                     labels = c("Global", "Province", "Local")) +
+  theme(legend.position = "none",
+        legend.text = element_text(colour = "grey20", size = 7), 
+        legend.key.size = unit(3, "mm"),
+        panel.grid = element_blank(), 
+        plot.title = element_text(colour = "grey20", size = 10, 
+                                  face = "bold"))
 
 # assign coordinates -----------------------------------------------
 
@@ -191,12 +268,12 @@ plot_map <- dat_map %>%
   geom_sf(data = world_map_sf, col = NA, fill = "white", size = 0.1) +
   labs(x = "Longitude", y = "Latitude", 
        fill = "Global-Local\nFUSE\nAgreement") +
-  scale_x_continuous(breaks = seq(-180, 180, 30),
+  scale_x_continuous(breaks = seq(-180, 180, 60),
                      expand = c(0, 0)) +
   scale_y_continuous(breaks = seq(-90, 90, 30),
                      expand = c(0, 0)) +
   coord_sf(ylim = c(-87, 87)) +
-  theme(legend.position = "right", 
+  theme(legend.position = "top", 
         plot.title = element_text(colour = "grey20", size = 10, 
                                   face = "bold", 
                                   hjust = -0.13))
@@ -204,14 +281,15 @@ plot_map <- dat_map %>%
 
 # patch together 
 plot_final <- free(plot_province) /
-  free(plot_map)
+ (plot_map | plot_mode) 
+  
 
 # save plot
 ggsave(plot_final,
        filename = here("figures",
                        "main",
-                       "FUSE_agreement.pdf"),
-       width = 200, height = 200,
+                       "fig_2.pdf"),
+       width = 300, height = 150,
        units = "mm",
        bg = "white")
 
