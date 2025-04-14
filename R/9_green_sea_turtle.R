@@ -141,27 +141,3 @@ ggsave(plot_higher_rank,
 
 
 
-
-# metrics per realm -------------------------------------------------------
-
-# calculate species richness, functional richness, and
-# functional diversity per realm
-fd_metrics <- list_spp_realm %>%
-  map(~pull(.x, species)) %>% 
-  map(~get_FV_Sp(ax = c(1:4),
-                 pcoa = dudi.pco(quasieuclid(distance_trait_matrix),
-                                 scannf = FALSE,
-                                 nf = 4),
-                 Selected_sp = .x), 
-      .progress = TRUE)
-
-# create tibble
-dat_metrics <- tibble(realm = realm_char, 
-                      spR =  map_dbl(fd_metrics,
-                                     ~pluck(.x, "data") %>%
-                                       pull("RS")), 
-                      FRic =  map_dbl(fd_metrics,
-                                      ~pluck(.x, "data") %>%
-                                        pull("FRic")))
-
-

@@ -162,11 +162,37 @@ dat_realm %>%
   write_rds(here("data", 
                  "global_regional_trends.rds"))
   
-
+# dat_realm <- read_rds(here("data", 
+#                            "global_regional_trends.rds"))
 
 
 # rank-rank correlation ---------------------------------------------------
 
+# extract overall correlations
+# province
+dat_realm %>%
+  left_join(dist_glob %>% 
+              full_join(dist_prov %>% 
+                          rename(prov_di = global_di))) %>% 
+  summarise(FUn = cor(FUn_std_local, FUn_std, use = "complete.obs", method = "kendall"), 
+            FSp = cor(FSp_std_local, FSp_std, use = "complete.obs", method = "kendall"), 
+            FDi = cor(prov_di, global_di, use = "complete.obs", method = "kendall"),
+            nSp = n()) 
+
+# local
+dat_var %>%
+  left_join(dat_fuse %>% 
+              select(species, FUSE, 
+                     FUn_std, FSp_std)) %>% 
+  left_join(dist_glob %>% 
+              full_join(dist_local %>% 
+                          rename(local_di = global_di)) %>% 
+              select(-contains("itude"))) %>% 
+  drop_na(FUn_std_local, FUn_std, FSp_std_local, FSp_std, global_di, local_di) %>% 
+  summarise(FUn = cor(FUn_std_local, FUn_std, use = "complete.obs", method = "kendall"), 
+            FSp = cor(FSp_std_local, FSp_std, use = "complete.obs", method = "kendall"),
+            FDi = cor(local_di, global_di, use = "complete.obs", method = "kendall"),
+            nSp = n())
 
 # per province rank-correlation
 plot_cor_prov <- dat_realm %>%

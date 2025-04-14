@@ -75,8 +75,7 @@ dat_metrics %>%
   write_rds(here("data",
                  "functional_metrics_global_FDi.rds"))
 
-# dat_metrics <- read_rds(here("data",
-#                              "functional_metrics_global_FDi.rds"))
+# dat_metrics <- read_rds(here("data", "functional_metrics_global_FDi.rds"))
 
 # upscale to 5x5 resolution
 dat_rast_agg <- dat_presabs %>%
@@ -129,6 +128,7 @@ dat_metrics_local %>%
                  "functional_metrics_local_FDi.rds"))
 
 
+# dat_metrics_local <- read_rds(here("data", "functional_metrics_local_FDi.rds"))
 
 # calculate hot-spots ------------------------------------------------------
 
@@ -157,15 +157,15 @@ dat_hot_loc <- dat_metrics_local %>%
 
 # count overlap -----------------------------------------------------------
 
+# upscale
+dat_rast_hot <- dat_hot %>%
+  select(longitude_x, latitude_y, contains("hot"))  %>% 
+  rasterFromXYZ() %>%
+  aggregate(fact = 10, #5x5
+            fun = sum)
+
 # set up function
 get_overlap <- function(metric){
-  
-  # upscale
-  dat_rast_hot <- dat_hot %>%
-    select(longitude_x, latitude_y, {{ metric }}) %>% 
-    rasterFromXYZ() %>%
-    aggregate(fact = 10, #5x5
-              fun = sum)
   
   # extract
   dat_rast_hot %>%
@@ -176,49 +176,79 @@ get_overlap <- function(metric){
                latitude_y = coordinates(dat_rast_hot)[, 2],
                .before = 0) %>% 
     inner_join(dat_hot_loc %>% 
-                 select(longitude_x, latitude_y, met_sel_loc = FSp_hot)) %>% 
+                 select(longitude_x, latitude_y, met_sel_loc = {{ metric }})) %>% 
     filter((met_sel + met_sel_loc) == 2) %>% 
     {{(nrow(.) / nrow(dat_hot_loc %>% 
-                    filter({{ metric }} == TRUE)))}} %>% 
+                    filter({{ metric }} == TRUE) %>% 
+                      bind_rows(dat_rast_hot %>%
+                                  as.data.frame() %>%
+                                  as_tibble()  %>% 
+                                  filter({{ metric }} >= 1))))}} %>% 
     {{.*100}} %>% 
     round() %>% 
     paste0(., "%")
 }
 
-
 # visualise ---------------------------------------------------------------
 
 # create plot
-plot_hot <- dat_hot %>%
+plot_hot <- dat_rast_hot %>%
+  as.data.frame() %>%
+  as_tibble() %>% 
+  add_column(longitude_x = coordinates(dat_rast_hot)[, 1],
+             latitude_y = coordinates(dat_rast_hot)[, 2],
+             .before = 0) %>% 
   pivot_longer(cols = c(contains("hot")), 
                names_to = "hotspot") %>% 
-  filter(value == TRUE) %>% 
+  filter(value >= 1) %>% 
   mutate(hotspot = str_remove_all(hotspot, "_hot")) %>% 
-  ggplot() +
-  geom_sf(data = world_map_sf, col = NA, fill = "grey90", size = 0.1) +
-  geom_tile(aes(x = longitude_x,
-                y = latitude_y),
-            colour = "grey95",
-            fill = "grey10",
+  ggplot(aes(x = longitude_x,
+             y = latitude_y)) +
+  geom_sf(data = world_map_sf, col = NA, fill = "grey90", size = 0.1, 
+          inherit.aes = FALSE) +
+  geom_tile(aes(fill = hotspot),
+            colour = "grey20",
             data = dat_hot_loc %>%
               pivot_longer(cols = c(contains("hot")),
                            names_to = "hotspot") %>% 
               filter(value == TRUE) %>% 
               mutate(hotspot = str_remove_all(hotspot, "_hot"))) +
-  geom_tile(aes(x = longitude_x,
-                y = latitude_y,
-                fill = hotspot), 
-            alpha = 0.8) +
-  geom_text(aes(longitude_x, 
-                latitude_y, 
-                label = perc_ov), 
+  geom_point(aes(colour = hotspot), 
+             shape = 21, 
+             size = 1.5,
+             stroke = 0.75,
+             fill = "white") +
+  geom_text(aes(label = perc_ov),
             size = 10/.pt,
-            data = tibble(hotspot = c("FDi", "FSp", "FUn"), 
+            data = tibble(hotspot = c("FDi", "FSp", "FUn"),
                           perc_ov = c(get_overlap(FDi_hot),
                                       get_overlap(FSp_hot),
-                                      get_overlap(FUn_hot)), 
+                                      get_overlap(FUn_hot)),
                           longitude_x = -130, latitude_y = -30)) +
+  geom_text(aes(label = perc_ov), 
+             data = tibble(longitude_x = c(-110, -110, -107), 
+                           latitude_y = -30, 
+                           perc_ov = "Overlap", 
+                           hotspot = c("FDi", "FSp", "FUn")), 
+            colour = "grey20",
+             size = 10/.pt) + 
+  geom_segment(aes(xend = long_end, yend = lat_end), 
+               arrow = arrow(length = unit(0.1, "inches")),
+               colour = "grey40",
+               data = tibble(longitude_x = c(-140, -40), long_end = c(-125, -60),
+                             latitude_y = c(30, 40), lat_end = c(60, 57),
+                             hotspot = "FDi")) +
+  geom_text(aes(label = perc_ov), 
+            data = tibble(longitude_x = c(-148, -40), 
+                          latitude_y = c(20, 30), 
+                          perc_ov = c("Local hotspot", "Global hotspot"), 
+                          hotspot = "FDi"), 
+            colour = "grey20",
+            size = 10/.pt) + 
   scale_fill_manual(values = c(colour_purple, colour_mint, 
+                               colour_yellow), 
+                    name = "Hotspots") +
+  scale_colour_manual(values = c(colour_purple, colour_mint, 
                                colour_yellow), 
                     name = "Hotspots") +
   labs(x = "Longitude", y = "Latitude") +
@@ -231,6 +261,7 @@ plot_hot <- dat_hot %>%
         legend.key.size = unit(2, "mm")) +
   facet_wrap(~hotspot, 
              ncol = 1)
+
 
 # save
 ggsave(plot_hot,

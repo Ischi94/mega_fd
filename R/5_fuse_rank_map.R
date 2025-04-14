@@ -89,33 +89,34 @@ get_agreement <- function(local_metr, global_metr,
              local_rank == "local" ~ "local", 
              local_rank == "none" & global_rank == "global" ~ "global", 
              local_rank == "none" & global_rank == "not" ~ "bnothing"
-           )) %>% 
+           )) 
+  %>%
     ggplot(aes(!!enquo(local_metr), !!enquo(global_metr))) +
     geom_abline(intercept = 0,
-                slope = 1, 
+                slope = 1,
                 linetype = "dotted",
                 colour = "grey20") +
-    geom_point(aes(fill = interaction(local_rank, global_rank), 
+    geom_point(aes(fill = interaction(local_rank, global_rank),
                    size = interaction(local_rank, global_rank)),
                colour = "grey60",
                shape = 21,
                stroke = 0.3) +
-    scale_fill_manual(values = c("grey20", "#2F899D", 
-                                 colour_coral, "white"), 
+    scale_fill_manual(values = c("grey20", "#2F899D",
+                                 colour_coral, "white"),
                       breaks = c("local.global", "global.global", "local.not", "bnothing.not"),
                       labels = c("Shared", "Global", "Local", " ")) +
-    scale_size_manual(values = c(2.2, 1.4, 1.4, 1.4), 
+    scale_size_manual(values = c(2.2, 1.4, 1.4, 1.4),
                       breaks = c("local.global", "global.global", "local.not", "bnothing.not"),
                       guide = "none") +
-    labs(y = "Global", 
-         x = "Provincial", 
+    labs(y = "Global",
+         x = "Provincial",
          fill = "10 highest species",
          title = title_metr) +
     scale_y_continuous(breaks = seq(0, 1, by = 0.2)) +
     scale_x_continuous(breaks = seq(0, 1, by = 0.2)) +
     theme(legend.position = legend_pos) +
-    guides(fill = guide_legend( 
-      override.aes = list(colour = "white", 
+    guides(fill = guide_legend(
+      override.aes = list(colour = "white",
                           size = 2.5)))
   
 }
