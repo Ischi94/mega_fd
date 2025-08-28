@@ -53,7 +53,7 @@ MEOW_sf <- read_sf(here("data",
                         "meow", 
                         "meow_ecos.shp"))
 
-# uniqueness and specialisation comparison
+# uniqueness and specialisation comparison, calculated in 02_global_regional_trends.R
 dat_realm <- read_rds(here("data",
                            "global_regional_trends.rds"))
 
@@ -209,7 +209,7 @@ dat_sp <- bind_rows(list_fuse_local) %>%
               filter(sp == 1) %>%
               select(contains("itude")))
 
-plot_metric <- dat_sp %>% 
+plot_metric <- dat_sp %>%
   rename("FDi_std_local" = "global_di") %>% 
   pivot_longer(cols = contains("std_local"), 
                names_to = "metric") %>% 
@@ -260,7 +260,7 @@ list_spaces <- list(max, min) %>%
       left_join(pcoa %>%
                   as_tibble(rownames = "species")) %>%
       mutate(
-        colour_id = if_else(species == sel_species, "yes", "no"),
+        colour_id = if_else(species == "Balaenoptera musculus", "yes", "no"),
         A1_center = mean(A1),
         A2_center = mean(A2)
       ) %>%
@@ -301,15 +301,15 @@ list_spaces <- list(max, min) %>%
 
 
 # patch together
-plot_bwhale <- plot_metric /
-  free(list_spaces[[1]] + list_spaces[[2]]) +
-  plot_layout(heights = c(2, 1))
+plot_bwhale <- plot_metric +
+  free(list_spaces[[1]] / list_spaces[[2]]) +
+  plot_annotation(tag_levels = "A")
 
 # save plot
 ggsave(plot_bwhale, 
        filename = here("figures",
                        "main", 
                        "fig_3.pdf"),
-       width = 120, height = 200,
+       width = 250, height = 150,
        units = "mm",
        bg = "white")

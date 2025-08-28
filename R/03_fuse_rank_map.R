@@ -42,12 +42,12 @@ world_map_sf <- st_read(here("data",
                              "worldmap",
                              "ne_10m_land.shp"))
 
-# per cell proportion values
+# per cell proportion values, calculated in /supplement/4_global_local_scaling.R
 dat_prop <- read_rds(here("data", 
           "proportional_coverage.rds")) %>% 
   filter(cell_res == "1x1")
 
-# per province agreement 
+# per province agreement, calculated in 02_global_regional_trends.R
 dat_realm <- read_rds(here("data",
                            "global_regional_trends.rds"))
 
@@ -55,11 +55,11 @@ dat_realm <- read_rds(here("data",
 dist_glob <- read_rds(here("data",
                            "global_distinctiveness.rds"))
 
-# provincial distinctiveness
+# provincial distinctiveness, calculated in /supplement/2_1_4_distinctiveness.R
 dist_prov <- read_rds(here("data", 
                            "provincial_distinctiveness.rds"))
 
-# fuse metrics
+# fuse metrics, calculated in /supplement/2_1_biodiversity_metrics.R
 dat_fuse <- read_rds(here("data",
                           "fuse_metrics_per_spp.rds"))
 
@@ -89,8 +89,7 @@ get_agreement <- function(local_metr, global_metr,
              local_rank == "local" ~ "local", 
              local_rank == "none" & global_rank == "global" ~ "global", 
              local_rank == "none" & global_rank == "not" ~ "bnothing"
-           )) 
-  %>%
+           ))  %>%
     ggplot(aes(!!enquo(local_metr), !!enquo(global_metr))) +
     geom_abline(intercept = 0,
                 slope = 1,
@@ -274,7 +273,7 @@ plot_map <- dat_map %>%
   scale_y_continuous(breaks = seq(-90, 90, 30),
                      expand = c(0, 0)) +
   coord_sf(ylim = c(-87, 87)) +
-  theme(legend.position = "top", 
+  theme(legend.position = "bottom", 
         plot.title = element_text(colour = "grey20", size = 10, 
                                   face = "bold", 
                                   hjust = -0.13))
@@ -282,7 +281,8 @@ plot_map <- dat_map %>%
 
 # patch together 
 plot_final <- free(plot_province) /
- (plot_map | plot_mode) 
+ (plot_map | plot_mode) +
+  plot_annotation(tag_levels = "A")
   
 
 # save plot
@@ -295,98 +295,3 @@ ggsave(plot_final,
        bg = "white")
 
 
-
-# # metrices per grid ------------------------------------------------
-# 
-# # read in metrices and summarise per latitude
-# dat_metrics <- read_rds(here("data",
-#                              "functional_metrics.rds")) %>% 
-#   group_by(latitude_y) %>% 
-#   summarise(across(c(spR, FRic, fuse, uniq, special), mean)) %>% 
-#   mutate(across(c(spR, FRic, fuse, uniq, special), ~scale(.x))) %>% 
-#   pivot_longer(cols = -latitude_y, 
-#                names_to = "metric") 
-# 
-# 
-# plot_latid <- dat_metrics %>%
-#   ggplot(aes(value, latitude_y, 
-#              colour = metric)) +
-#   geom_path(linewidth = 0.5) +
-#   geom_path(data = dat_map %>% 
-#               group_by(latitude_y) %>% 
-#               summarise(value = mean(fuse_prop, 
-#                                      na.rm = TRUE)) %>% 
-#               mutate(value = scale(value)) %>% 
-#               add_column(metric = "fuse_prop"), 
-#             linewidth = 1.1, 
-#             colour = "grey10") +
-#   scale_color_manual(values = c(colour_coral, 
-#                                 colour_mint, 
-#                                 colour_yellow, 
-#                                 colour_purple, 
-#                                 "brown"), 
-#                      labels = c("FRic", "FUSE", "FSp", 
-#                                 "SR", "FUn"),
-#                      name = "Metric") +
-#   annotate(size = 10/.pt, 
-#            "text", 
-#            label = "FUSE\nGlobal-local \nagreement", 
-#            x = 1.5, 
-#            y = -35) +
-#   labs(y = "Latitude", 
-#        x = "Z-score") +
-#   theme(legend.position = c(0.9, 0.5))
-# 
-# # patch together
-# plot_final <- plot_map/ plot_latid
-# 
-# # save plot
-# ggsave(plot_final,
-#        filename = here("figures",
-#                        "main",
-#                        "5_agreement_map.pdf"),
-#        width = 183, height = 100*2,
-#        units = "mm",
-#        bg = "white")
-# 
-# # computes species richness and functional richness per grid cell
-# fd_metrics <- spp_per_grid %>% 
-#   map(~get_FV_Sp(ax = c(1:4),
-#                  pcoa = pcoa,
-#                  Selected_sp = .x), 
-#       .progress = TRUE)
-# 
-# 
-# # species richness
-# vec_spR <- fd_metrics %>%
-#   map_dbl(~pluck(.x, "data") %>% 
-#             pull("RS"))
-# 
-# # functional richness
-# vec_FRic <- fd_metrics %>%
-#   map_dbl( ~ pluck(.x, "data") %>%
-#              pull("FRic"))
-# 
-# # assign values to cells and NA to empty cells
-# dat_1x1[!empty_cells, c(1, 2)] %>%
-#   add_column(fuse_prop = vec_spR) %>%
-#   bind_rows(dat_1x1[empty_cells, c(1, 2)] %>%
-#               add_column(fuse_prop = NA_real_)) %>%
-#   arrange(longitude_x, desc(latitude_y)) %>%
-#   # plot
-#   ggplot() +
-#   geom_raster(aes(x = longitude_x,
-#                   y = latitude_y,
-#                   fill = fuse_prop)) +
-#   scale_fill_gradient(low = colour_mint,
-#                       high = colour_purple,
-#                       na.value = "white",
-#                       name = "Coverage") +
-#   geom_sf(data = world_map_sf, col = NA, fill = "grey80", size = 0.1) +
-#   labs(x = "Longitude", y = "Latitude") +
-#   scale_x_continuous(breaks = seq(-180, 180, 30),
-#                      expand = c(0, 0)) +
-#   scale_y_continuous(breaks = seq(-90, 90, 30),
-#                      expand = c(0, 0))
-# 
-# lm(dat_prop$fuse_prop)

@@ -14,15 +14,11 @@ source(here("R",
 # load data ---------------------------------------------------------------
 
 
-# distance-trait matrix
-load(here("data", 
-          "distance_trait_matrix.RData"))
-
-# fuse metrics
+# fuse metrics, calculated in /supplement/2_1_biodiversity_metrics.R
 dat_fuse <- read_rds(here("data",
                           "fuse_metrics_per_spp.rds"))
 
-# local metric variation
+# local metric variation, calculated in 04_blue_whale.R
 dat_var <- read_rds(here("data", 
                          "ranking_variation_per_species_umsummarized.rds"))
 
@@ -38,6 +34,11 @@ dat_presabs <- read_rds(here("data",
               ~ .x %>% 
                 str_to_sentence() %>% 
                 str_replace_all("_", " ")) 
+
+
+# distance-trait matrix
+load(here("data", 
+          "distance_trait_matrix.RData"))
 
 # extract functional space axes
 pcoa <- dudi.pco(quasieuclid(distance_trait_matrix),
@@ -56,15 +57,15 @@ dat_iucn <- read_csv(here("data",
                           "megafauna_traits.csv")) %>%
   select(species, higher_classification, IUCN)
 
-# global distinctiveness
+# global distinctiveness, calculated in /supplement/2_1_4_distinctiveness.R
 dist_glob <- read_rds(here("data",
                            "global_distinctiveness.rds"))
 
-# provincial distinctiveness
+# provincial distinctiveness, calculated in /supplement/2_1_4_distinctiveness.R
 dist_prov <- read_rds(here("data", 
                            "provincial_distinctiveness.rds"))
 
-# local distinctiveness.
+# local distinctiveness, calculated in /supplement/2_1_4_distinctiveness.R
 dist_local <- read_rds(here("data", 
                            "local_distinctiveness.rds"))
 
@@ -294,6 +295,7 @@ plot_cor_loc <- dat_var %>%
                                colour_purple), 
                     breaks = c("FDi", "FUSE", 
                                "FSp", "FUn")) +
+  scale_y_continuous(labels = function(x) str_c(x, '°')) +
   scale_size_continuous(guide = "none", 
                         range = c(0.8, 4)) +
   labs(y = "Latitude", 
@@ -311,13 +313,14 @@ plot_cor_loc <- dat_var %>%
 
 
 # merge together
-plot_final <- plot_cor_prov + plot_cor_loc 
+plot_final <- plot_cor_prov + plot_cor_loc + 
+  plot_annotation(tag_levels = "A")
 
 # save plot
 ggsave(plot_final, 
        filename = here("figures",
                        "main", 
-                       "fig_1.pdf"),
+                       "fig_1.png"),
        width = 183, height = 100,
        units = "mm",
        bg = "white")

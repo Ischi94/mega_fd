@@ -23,12 +23,12 @@ dat_presabs <- read_rds(here("data",
                 str_to_sentence() %>% 
                 str_replace_all("_", " "))
 
-# load metrics calculated in 1
+# load metrics, calculated in /supplement/2_1_biodiversity_metrics.R
 dat_metrics <- read_rds(here("data",
                              "functional_metrics.rds"))  
 
 
-# load local metrics calculated in 1
+# load local metrics, calculated in /supplement/2_2_local_biodiversity_metrics.R
 dat_metrics_local <- read_rds(here("data",
                                    "functional_metrics_local.rds"))
 
@@ -37,10 +37,10 @@ world_map_sf <- st_read(here("data",
                              "worldmap",
                              "ne_10m_land.shp"))
 
-# global distinctiveness
+# global distinctiveness, calculated in /supplement/2_1_4_distinctiveness.R
 dat_dist_glob <- read_rds(here("data", "global_distinctiveness.rds"))
 
-# local distinctiveness
+# local distinctiveness, calculated in /supplement/2_1_4_distinctiveness.R
 dat_dist_loc <- read_rds(here("data", "local_distinctiveness.rds"))
 
 
@@ -129,6 +129,51 @@ dat_metrics_local %>%
 
 
 # dat_metrics_local <- read_rds(here("data", "functional_metrics_local_FDi.rds"))
+
+
+
+# visualise maps ------------------------------------------------------------------------------
+
+# rearrange data
+plot_maps <- dat_metrics %>% 
+  select(FDi, FSp = special, FUn = uniq, longitude_x, latitude_y) %>% 
+  add_column(reso = "Global") %>% 
+  pivot_longer(cols = c(FDi, FSp, FUn), 
+               names_to = "metric") %>% 
+  bind_rows(dat_metrics_local %>% 
+              select(FDi, FSp = FSp_std_local_1, FUn = FUn_std_local_1, longitude_x, latitude_y) %>% 
+              add_column(reso = "Local") %>% 
+              pivot_longer(cols = c(FDi, FSp, FUn), 
+                           names_to = "metric")) %>% 
+  # summarise(mean(value, na.rm = T), median(value, na.rm = T))
+  ggplot() +
+  geom_raster(aes(x = longitude_x, 
+                  y = latitude_y, 
+                  fill = value)) +
+  geom_sf(data = world_map_sf,
+          col = NA,
+          fill = "grey90",
+          size = 0.1) +
+  scale_fill_gradient2(
+    low = colour_mint,
+    mid = colour_purple,
+    high = colour_yellow,
+    midpoint = 0.4, 
+    name = NULL) +
+  scale_y_continuous(breaks = seq(-90, 90, 30),
+                     expand = c(0, 0)) +
+  labs(x = "Longitude", y = "Latitude") +
+  coord_sf(xlim = c(-180, 180),  ylim = c(-89, 85), expand = FALSE) +
+  facet_grid(rows = vars(metric), 
+             cols = vars(reso))
+
+# save
+ggsave(plot_maps,
+       filename = here("figures", "main", "fig_4.png"), 
+       width = 183, height = 140,
+       device = "png", 
+       units = "mm", bg = "white")
+
 
 # calculate hot-spots ------------------------------------------------------
 
@@ -265,88 +310,10 @@ plot_hot <- dat_rast_hot %>%
 
 # save
 ggsave(plot_hot,
-       filename = here("figures", "main", "fig_5.pdf"), 
-       width = 183, height = 300,
-       device = "pdf", 
+       filename = here("figures", "main", "fig_5.png"), 
+       width = 183, height = 280,
+       device = "png", 
        units = "mm", bg = "white")
 
 
 
-# # fuse hotspots -----------------------------------------------------------
-# 
-# # calculate quantile threshold
-# dat_fuse <- dat_metrics %>% 
-#   mutate(fuse_top_hot = fuse_top > quantile(fuse_top,
-#                                   probs =  0.975), 
-#          fuse_hot = fuse > quantile(fuse,
-#                                     probs =  0.975), 
-#          overlap_hot = if_else(fuse_top_hot + fuse_hot == 2, 
-#                                TRUE, FALSE)) %>% 
-#   pivot_longer(cols = c(contains("hot")), 
-#                names_to = "hotspot") %>% 
-#   mutate(hotspot = as.factor(hotspot))
-# 
-# plot_fuse_hot <- dat_fuse %>%
-#   filter(value == TRUE) %>% 
-#   ggplot() +
-#   geom_tile(aes(x = longitude_x,
-#                   y = latitude_y, 
-#                   fill = hotspot)) +
-#   geom_sf(data = world_map_sf, col = NA, fill = "grey", size = 0.1) +
-#   scale_fill_manual(values = c("#c65831", "#169199"),
-#                     name = "Hotspots",
-#                     labels = c("FUSE", "TOP 25% FUSE SR")) +
-#   labs(x = "Longitude", y = "Latitude") +
-#   coord_sf(xlim = c(-180, 180),  ylim = c(-89, 85), expand = FALSE) +
-#   scale_x_continuous(breaks = seq(-180, 180, 30), 
-#                      expand = c(0, 0)) +
-#   scale_y_continuous(breaks = seq(-90, 90, 30), 
-#                      expand = c(0, 0)) +
-#   theme(legend.position = "top", 
-#         legend.key.size = unit(2, "mm"))
-# 
-# 
-# # venn diagram  -----------------------------------------------------------
-# 
-# plot_venn <- dat_hot %>%
-#   filter(hotspot != "overlap_hot") %>% 
-#   filter(value == TRUE) %>% 
-#   select(longitude_x, latitude_y, hotspot) %>% 
-#   full_join(dat_fuse %>% 
-#               filter(hotspot != "overlap_hot") %>% 
-#               filter(value == TRUE) %>% 
-#               select(longitude_x, latitude_y, hotspot)) %>% 
-#   mutate(across(c(longitude_x, latitude_y), abs)) %>% 
-#   ggplot(aes(longitude_x, latitude_y, 
-#              colour = hotspot, 
-#              fill = hotspot)) +
-#   stat_ellipse(geom = "polygon", 
-#                alpha = 0.5) +
-#   labs(x = "Absolute Longitude", 
-#        y = "Absolute Latitude", 
-#        colour = "Hotspot", 
-#        fill = "Hotspot") +
-#   scale_color_manual(values = c(colour_mint, "#c65831", "#169199",
-#                                 colour_yellow, colour_purple),
-#                      labels = c("FRic", "FUSE", "TOP 25% FUSE SR",  
-#                                 "SR", "FUn")) +
-#   scale_fill_manual(values = c(colour_mint, "#c65831", "#169199",
-#                                colour_yellow, colour_purple),
-#                     labels = c("FRic", "FUSE", "TOP 25% FUSE SR",  
-#                                "SR", "FUn")) +
-#   theme(legend.position = c(0.9, 0.6), 
-#         legend.key.size = unit(5, "mm"))
-# 
-# # combine figures ---------------------------------------------------------
-# 
-# # patch together
-# plot_final <- plot_hot/ plot_fuse_hot/ plot_venn
-# 
-# # save
-# ggsave(plot_final, 
-#        filename = here("figures",
-#                        "main",
-#                        "fig_5.pdf"),
-#        width = 183, height = 100*3,
-#        units = "mm",
-#        bg = "white")
