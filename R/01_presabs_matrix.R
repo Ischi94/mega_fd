@@ -9,7 +9,7 @@ library(letsR)
 
 # IUCN data - species distributions 
 dat_iucn <- read_sf(here("data", 
-                         "iucn", 
+                         "IUCN", 
                          "IUCN_megafauna_spp_distributions.shp"))
 
 # Set coordinates reference system
