@@ -34,9 +34,9 @@ write.table(dat_presabs,
             row.names = F)
 
 
-# dat_presabs <- read_delim(here("data",
-#                                "IUCN",
-#                                "megafauna_IUCN_presabs_0.5res.txt"))
+dat_presabs <- read_delim(here("data",
+                               "IUCN",
+                               "megafauna_IUCN_presabs_0.5res.txt"))
 
 
 # aquamaps ----------------------------------------------------------------
@@ -93,6 +93,7 @@ dat_aqua <- dat_aqua %>%
   rename(latitude = "CenterLat" ,
          longitude = "CenterLong")
 
+# convert into presence-absence matrix
 dat_presabs_aqua <- dat_aqua %>% 
   select(longitude, 
          latitude) %>% 

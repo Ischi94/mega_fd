@@ -9,16 +9,22 @@ library(officer)
 dat_local <- read_rds(here("data",
                            "local_metrics_5_res.rds"))
 
-# only maximun FUn
-dat_fun <- dat_local %>% 
-  select(Species = species, 
-         Latitude = latitude, Longitude = longitude,  
-         FUn = FUn_std_local) %>%
-  filter(FUn == 1) %>% 
-  arrange(Species) %>% 
-  mutate(Species = str_to_sentence(Species), 
+# summarise metrics
+dat_fun <- dat_local %>%
+  rename_with(~ str_remove(.x, "_?local$")) %>% 
+  rename_with(~ str_remove(.x, "_?std$")) %>% 
+  group_by(species) %>% 
+  summarise(across(c(FUSE, FUn, FSp, FDi), 
+                   list(sd = ~sd(.x, na.rm = TRUE),
+                        min = ~min(.x, na.rm = TRUE),
+                        mean = ~mean(.x, na.rm = TRUE),
+                        max = ~max(.x, na.rm = TRUE)))) %>% 
+  mutate(Species = str_to_sentence(species), 
          Species = str_replace_all(Species, "_", " "), 
-         FUn = round(FUn, 2)) 
+         across(where(is.double), ~round(.x, 2)), 
+         .before = 1) %>% 
+  select(-species)
+  
 
 # generate nice looking flextable
 table_fun <- dat_fun %>%
