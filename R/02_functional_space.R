@@ -42,22 +42,22 @@ distance_trait_matrix <- dist.ktab(list_traits,
                                  c("scaledBYrange"))
 
 # # save distance trait matrix
-# distance_trait_matrix %>% 
-#   write_rds(here("data", 
-#                  "distance_trait_matrix.rds"), 
-#             compress = "gz")
+distance_trait_matrix %>%
+  write_rds(here("data",
+                 "distance_trait_matrix.rds"),
+            compress = "gz")
 
 
 # select dimensions ---------------------------------------------------------------------------
 
 
 # compute functional space
-p <-  dudi.pco(quasieuclid(distance_trait_matrix),
-                       scannf = FALSE,
-                       nf = 9) 
+func_space_full <-  dudi.pco(quasieuclid(distance_trait_matrix),
+                             scannf = FALSE,
+                             nf = 9) 
 
 # extract scores
-scores <- p$li  
+scores <- func_space_full$li  
 
 # original distance matrix as matrix
 D0 <- as.matrix(distance_trait_matrix)
@@ -78,19 +78,19 @@ for (k in 1:max_k) {
   msd_vec[k] <- mean((D0 - Dk)^2)
 }
 
-# visualise elbow inflextion point
-plot(1:max_k, msd_vec, type = "b", pch = 19,
-     xlab = "number of pcoa axes",
-     ylab = "mean squared deviation",
-     main = "elbow selection for pcoa dimensions")
+# # visualise elbow inflextion point
+# plot(1:max_k, msd_vec, type = "b", pch = 19,
+#      xlab = "number of pcoa axes",
+#      ylab = "mean squared deviation",
+#      main = "elbow selection for pcoa dimensions")
 
 # compute functional space with appropriate dimensions
-dat_space <-  dudi.pco(quasieuclid(distance_trait_matrix),
-               scannf = FALSE,
-               nf = 5) %>% 
+func_space <-  dudi.pco(quasieuclid(distance_trait_matrix),
+                             scannf = FALSE,
+                             nf = 5) %>% 
   pluck("li")
 
 # # save functional space
-# dat_space %>% 
-#   write_rds(here("data", "functional_space.rds"))
+func_space %>%
+  write_rds(here("data", "functional_space.rds"))
   
