@@ -19,15 +19,12 @@ dat_global <- read_rds(here("data", "global_metrics.rds"))
 dat_local <- read_rds(here("data", "local_metrics_1_res.rds"))
 
 # per realm metrics
-dat_realm <- read_rds(here("data", "realm_metrics.rds")) %>% 
-  rename_with(cols = contains("local"), 
-              .f = ~ str_replace_all(.x, "local", "realm"))
+dat_realm <- read_rds(here("data", "realm_metrics.rds")) 
 
 # provinces of the world
 MEOW_sf <- read_sf(here("data", 
                         "meow", 
                         "meow_ecos.shp"))
-
 
 # world map
 world_map_sf <- st_read(here("data", 
@@ -91,13 +88,13 @@ get_agreement <- function(local_metr, global_metr,
 
 
 # specialisation
-plot_FSp <- get_agreement(FSp_realm, FSp_std, "FSp", "none")
+plot_FSp <- get_agreement(FSp_realm, FSp, "FSp", "none")
 
 # distinctiveness
-plot_FDi <- get_agreement(FDi_realm, FDi_std, "FDi", "top")
+plot_FDi <- get_agreement(FDi_realm, FDi, "FDi", "top")
 
 # uniqueness
-plot_FUn <- get_agreement(FUn_realm, FUn_std, "FUn", "none")
+plot_FUn <- get_agreement(FUn_realm, FUn, "FUn", "none")
 
 # patch together
 plot_province <- plot_FSp + plot_FDi + plot_FUn
@@ -108,13 +105,13 @@ plot_province <- plot_FSp + plot_FDi + plot_FUn
 
 # global to province
 dat_glob_realm <- dat_global %>%
-  filter(species != "tridacna_gigas") %>% 
   arrange(desc(FUSE)) %>%
-  slice_head(n = 5) %>%
+  filter(species %in% c("chelonia_mydas", "probarbus_jullieni", 
+                        "arctocephalus_galapagoensis", "enhydra_lutris", 
+                        "ursus_maritimus")) %>% 
   mutate(global_rank = row_number()) %>%
   select(species, global_rank) %>% 
   left_join(dat_realm %>% 
-              filter(species != "tridacna_gigas") %>% 
               group_by(realm) %>% 
               select(species, FUSE_realm, realm) %>% 
               arrange(realm, desc(FUSE_realm)) %>% 
@@ -159,7 +156,7 @@ plot_mode <- dat_glob_realm %>%
              label.r = unit(1, "lines"),
              size = 8/.pt, 
              data = . %>%  
-               filter(rank %in% c(1:5, 7, 9, 11, 15, 20, 24))) +
+               filter(rank %in% c(1:8, 13, 16, 23, 29, 34, 41, 49))) +
   geom_text(aes(label = species, 
                 colour = species),
             data = dat_glob_realm %>%
@@ -194,6 +191,7 @@ plot_mode <- dat_glob_realm %>%
 
 # global-local agreement ----------------------------------------------------------------------
 
+
 # calculate proportion of agreement in FUSE rank between local cells and global rank
 dat_prop <- dat_local %>% 
   select(id, species, FUSE_local) %>% 
@@ -204,28 +202,30 @@ dat_prop <- dat_local %>%
               rowid_to_column("global_rank")) %>% 
   group_by(id) %>% 
   nest() %>% 
-  mutate(fuse_prop = map_dbl(data, ~ .x %>% 
-                      arrange(desc(FUSE_local)) %>% 
-                      rowid_to_column("local_rank") %>%
-                      filter(between(global_rank, 1, 10)) %>% 
-                      nrow(.)/10))  %>% 
-  select(-data) %>% 
-  left_join(dat_local %>% 
-              select(id, latitude, longitude))
+  ungroup() %>% 
+  mutate(fuse_prop = map_dbl(data, 
+                             ~ .x %>% 
+                               arrange(desc(FUSE_local)) %>% 
+                               rowid_to_column("local_rank") %>% 
+                               filter(between(global_rank, 1, 10)) %>% 
+                               nrow(.)/10))
 
 # create map
 plot_map <- dat_prop %>%
+  select(-data) %>% 
+  left_join(dat_local %>% 
+              select(id, latitude, longitude)) %>% 
   ggplot() +
   geom_raster(aes(x = longitude,
                   y = latitude,
                   fill = fuse_prop)) +
   scale_fill_gradient2(low = colour_mint,
                        mid = colour_purple,
-                       midpoint = 0.2,
+                       midpoint = 0.1,
                        high = colour_yellow,
                        na.value = "white",
-                       breaks = c(0, 0.2, 0.4),
-                       labels = c("0%", "20%", "40%")) +
+                       breaks = c(0, 0.1, 0.2, 0.3),
+                       labels = c("0%", "10%", "20%", "30%")) +
   geom_sf(data = world_map_sf, col = NA, fill = "white", size = 0.1) +
   labs(x = "Longitude", y = "Latitude", 
        fill = "Global-Local\nFUSE\nAgreement") +
@@ -251,7 +251,7 @@ plot_final <- free(plot_province) /
 ggsave(plot_final,
        filename = here("figures",
                        "main",
-                       "fig_2.pdf"),
+                       "fig_2.svg"),
        width = 300, height = 150,
        units = "mm",
        bg = "white")

@@ -138,7 +138,7 @@ plot_final <- plot_cor_prov + plot_cor_loc +
 ggsave(plot_final, 
        filename = here("figures",
                        "main", 
-                       "fig_1.pdf"),
+                       "fig_1.png"),
        width = 183, height = 100,
        units = "mm",
        bg = "white")

@@ -33,7 +33,9 @@ dat_space <- read_rds(here("data", "functional_space.rds"))
 # visualise
 plot_metric <- dat_local %>% 
   filter(species == "balaenoptera_musculus") %>% 
-  pivot_longer(cols = contains("std_local"), 
+  select(-FUSE_local) %>% 
+  mutate(across(contains("local"), \(x) (x-min(x))/(max(x)-min(x)))) %>% 
+  pivot_longer(cols = contains("local"), 
                names_to = "metric") %>% 
   mutate(metric = word(metric, sep = "_"), 
          metric = ordered(metric, levels = c("FSp", "FDi", "FUn"))) %>% 

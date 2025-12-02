@@ -35,7 +35,7 @@ dat_presabs <- read_rds(here("data",
   # select "grid" cells with >5 species (the trait space is 5D)
   mutate(srich = rowSums(select(., -c(1, 2)))) %>% 
   filter(srich > 5) %>% 
-  select(-c(srich, rita_rita)) 
+  select(-srich) 
 
 
 # global distribution of metrices -------------------------------------------------------------
@@ -46,18 +46,19 @@ dat_comp <- dat_presabs %>%
                names_to = "species") %>% 
   filter(value == 1) %>% 
   left_join(dat_global %>% 
-              select(species, FDi = FDi_std, FSp = FSp_std, FUn = FUn_std)) %>% 
+              select(-FUSE)) %>% 
   group_by(longitude_x, latitude_y) %>% 
   summarise(across(c(FDi, FSp, FUn), mean), 
             .groups = "drop") %>% 
   add_column(reso = "Global") %>% 
   bind_rows(dat_local %>% 
               select(longitude_x = longitude, latitude_y = latitude,
-                     FDi = FDi_std_local,  FSp = FSp_std_local, FUn = FUn_std_local) %>% 
+                     FDi = FDi_local,  FSp = FSp_local, FUn = FUn_local) %>% 
               group_by(longitude_x, latitude_y) %>% 
               summarise(across(c(FDi, FSp, FUn), mean), 
                         .groups = "drop") %>% 
               add_column(reso = "Local")) %>% 
+  mutate(across(c(FDi, FSp, FUn), \(x) (x-min(x))/(max(x)-min(x)))) %>% 
   pivot_longer(cols = -c(longitude_x, latitude_y, reso), 
                names_to = "metric")
 
@@ -95,13 +96,10 @@ ggsave(plot_maps,
 
 # use 2.5% as cutoff
 dat_hot <- dat_local %>%
-  select(species, 
-         longitude_x = longitude, latitude_y = latitude,
-         FDi_local = FDi_std_local, FSp_local = FSp_std_local, 
-         FUn_local = FUn_std_local) %>% 
+  rename(longitude_x = longitude, latitude_y = latitude) %>% 
   left_join(dat_global %>% 
               select(species, 
-                     FDi_global = FDi_std, FSp_global = FSp_std, FUn_global = FUn_std)) %>% 
+                     FDi_global = FDi, FSp_global = FSp, FUn_global = FUn)) %>% 
   group_by(longitude_x, latitude_y) %>% 
   summarise(across(c(FDi_local:FUn_global), mean), 
             .groups = "drop") %>% 

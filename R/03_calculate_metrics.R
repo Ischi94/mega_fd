@@ -16,7 +16,7 @@ dat_presabs <- read_rds(here("data",
   # select "grid" cells with >5 species (the trait space is 4D)
   mutate(srich = rowSums(select(., -c(1, 2)))) %>% 
   filter(srich > 5) %>% 
-  select(-c(srich, rita_rita)) 
+  select(-srich) 
 
 # IUCN categories
 dat_iucn <- read_csv(here("data",

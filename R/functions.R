@@ -56,10 +56,8 @@ get_metrics <- function(Mat_dist, Coords, nb_NN=5, GE){
   
   
   # FUSE metrics calculation
-  FUn_std <- as.vector(decostand(FUn,"range"))
-  FUGE <- log(1+(FUn_std*GE))
-  FSp_std <- as.vector(decostand(FSp,"range")) 
-  FSGE <- log(1+(FSp_std*GE))
+  FUGE <- log(1+(FUn*GE))
+  FSGE <- log(1+(FSp*GE))
   FUSE <- setNames(FUGE+FSGE,nm=nm)
   
   data.frame(cbind(FUSE, FSp, FUn))
