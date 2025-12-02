@@ -61,7 +61,7 @@ dat_global <- get_metrics(Mat_dist = dat_dist,
                      GE = ge) %>% 
   as_tibble(rownames = "species") %>% 
   # compute distinctiveness
-  left_join(as_tibble(distinctiveness_global(dat_dist, di_name = "FDi_std")), 
+  left_join(as_tibble(distinctiveness_global(dat_dist, di_name = "FDi")), 
             by = join_by(species))
 
 # save 
@@ -72,7 +72,6 @@ dat_global %>%
 # calculate local metrices ------------------------------------------------------
 
 
-# list of all species present per grid 
 # list of all species present per grid 
 spp_per_grid <- apply(dat_presabs, 
                       1, 
@@ -130,11 +129,11 @@ for (i in 1:length(spp_per_grid)) {
                                       GE = ge) %>% 
     as_tibble(rownames = "species") %>% 
     arrange(species) %>%
-    select(species, FUSE, FUn_std, FSp_std) %>% 
+    select(species, FUSE, FUn, FSp) %>% 
     rename_with(.cols = -species, 
                 .fn = ~ paste0(.x, "_local")) %>% 
     # compute distinctiveness
-    left_join(as_tibble(distinctiveness_global(dist_mat_realm, di_name = "FDi_std_local")), 
+    left_join(as_tibble(distinctiveness_global(dist_mat_realm, di_name = "FDi_local")), 
               by = join_by(species))
   
   print(i)
@@ -236,11 +235,11 @@ for (i in 1:length(spp_per_grid)) {
                                    GE = ge) %>% 
     as_tibble(rownames = "species") %>% 
     arrange(species) %>%
-    select(species, FUSE, FUn_std, FSp_std) %>% 
+    select(species, FUSE, FUn, FSp) %>% 
     rename_with(.cols = -species, 
                 .fn = ~ paste0(.x, "_local")) %>% 
     # compute distinctiveness
-    left_join(as_tibble(distinctiveness_global(dist_mat_realm, di_name = "FDi_std_local")), 
+    left_join(as_tibble(distinctiveness_global(dist_mat_realm, di_name = "FDi_local")), 
               by = join_by(species))
   
   print(i)
@@ -341,12 +340,12 @@ for (i in 1:length(realm_char)) {
                                    GE = ge) %>% 
     as_tibble(rownames = "species") %>% 
     arrange(species) %>%
-    select(species, FUSE, FUn_std, FSp_std) %>% 
+    select(species, FUSE, FUn, FSp) %>% 
     rename_with(.cols = -species, 
-                .fn = ~ paste0(.x, "_local")) %>% 
+                .fn = ~ paste0(.x, "_realm")) %>% 
     add_column(realm = realm_char[i]) %>% 
     # compute distinctiveness
-    left_join(as_tibble(distinctiveness_global(dist_mat_realm, di_name = "FDi_std_local")), 
+    left_join(as_tibble(distinctiveness_global(dist_mat_realm, di_name = "FDi_realm")), 
               by = join_by(species))
   
 }

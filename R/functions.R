@@ -34,7 +34,7 @@ colour_grey = "grey55"
 colour_coral = "#F95875"
 
 
-get_metrics <- function(Mat_dist,Coords,nb_NN=5,GE,StandGE=F){
+get_metrics <- function(Mat_dist, Coords, nb_NN=5, GE){
   
   require(vegan)
   require(reshape2)
@@ -47,32 +47,22 @@ get_metrics <- function(Mat_dist,Coords,nb_NN=5,GE,StandGE=F){
   
   # Specialization calculation
   O <- apply(Coords,2,mean)
-  spe <- apply(Coords, 1,function(x){sum((x-O)^2)^0.5})
-  
-  # Distinctivness calculation 
-  dist_sp <- as.matrix(Mat_dist)
-  Fdistinct <- apply(dist_sp,1,mean)
+  FSp <- apply(Coords, 1,function(x){sum((x-O)^2)^0.5})
+
   
   # Uniqueness calculation
   uni_res <- get_indicator(Mat_dist=as.matrix(Mat_dist),nb_NN=nb_NN)
-  uniqu <- uni_res$Average_uniqueness[,"Mean"]
+  FUn <- uni_res$Average_uniqueness[,"Mean"]
   
-  if(StandGE==TRUE){
-    GE <- as.vector(decostand(GE,"range",na.rm=T))
-  } 
   
   # FUSE metrics calculation
-  FUn_std <- as.vector(decostand(uniqu,"range"))
+  FUn_std <- as.vector(decostand(FUn,"range"))
   FUGE <- log(1+(FUn_std*GE))
-  FSp_std <- as.vector(decostand(spe,"range")) 
+  FSp_std <- as.vector(decostand(FSp,"range")) 
   FSGE <- log(1+(FSp_std*GE))
-  FUS <- FUn_std+FSp_std
-  FDist_std <- as.vector(decostand(Fdistinct,"range"))
   FUSE <- setNames(FUGE+FSGE,nm=nm)
-  FUSE_alt<-log(1+FUS*GE)
-  FDGE <- log(1+(FDist_std*GE))
   
-  data.frame(cbind(FUSE,FUSE_alt,FUGE,FDGE,FSGE, FUS,FUn_std,FSp_std,FDist_std))
+  data.frame(cbind(FUSE, FSp, FUn))
   
 }
 

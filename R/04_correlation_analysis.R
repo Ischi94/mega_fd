@@ -14,12 +14,10 @@ source(here("R",
 dat_global <- read_rds(here("data", "global_metrics.rds"))
 
 # local metrics
-dat_local <- read_rds(here("data", "local_metrics.rds"))
+dat_local <- read_rds(here("data", "local_metrics_5_res.rds"))
 
 # per realm metrics
-dat_realm <- read_rds(here("data", "realm_metrics.rds")) %>% 
-  rename_with(cols = contains("local"), 
-              .f = ~ str_replace_all(.x, "local", "realm"))
+dat_realm <- read_rds(here("data", "realm_metrics.rds")) 
 
 # provinces of the world
 MEOW_sf <- read_sf(here("data", 
@@ -32,17 +30,17 @@ MEOW_sf <- read_sf(here("data",
 dat_cor_prov <- dat_realm %>%
   left_join(dat_global) %>% 
   group_by(realm) %>%
-  summarise(FUn = cor(FUn_realm, FUn_std, use = "complete.obs", method = "kendall"), 
-            FSp = cor(FSp_realm, FSp_std, use = "complete.obs", method = "kendall"), 
+  summarise(FUn = cor(FUn_realm, FUn, use = "complete.obs", method = "kendall"), 
+            FSp = cor(FSp_realm, FSp, use = "complete.obs", method = "kendall"), 
             FUSE = cor(FUSE_realm, FUSE, use = "complete.obs", method = "kendall"), 
-            FDi = cor(FDi_realm, FDi_std, use = "complete.obs", method = "kendall"),
+            FDi = cor(FDi_realm, FDi, use = "complete.obs", method = "kendall"),
             nSp = n())  %>% 
   bind_rows(dat_realm %>% 
               left_join(dat_global) %>% 
-              summarise(FUn = cor(FUn_realm, FUn_std, use = "complete.obs", method = "kendall"), 
-                        FSp = cor(FSp_realm, FSp_std, use = "complete.obs", method = "kendall"), 
+              summarise(FUn = cor(FUn_realm, FUn, use = "complete.obs", method = "kendall"), 
+                        FSp = cor(FSp_realm, FSp, use = "complete.obs", method = "kendall"), 
                         FUSE = cor(FUSE_realm, FUSE, use = "complete.obs", method = "kendall"), 
-                        FDi = cor(FDi_realm, FDi_std, use = "complete.obs", method = "kendall"),
+                        FDi = cor(FDi_realm, FDi, use = "complete.obs", method = "kendall"),
                         nSp = n()) %>% 
               add_column(realm = "Overall")) %>% 
   pivot_longer(cols = -c(realm, nSp), 
@@ -91,10 +89,10 @@ plot_cor_prov <- dat_cor_prov %>%
 plot_cor_loc <- dat_local %>%
   left_join(dat_global) %>% 
   group_by(id) %>% 
-  summarise(FUn = cor(FUn_std_local, FUn_std, use = "complete.obs", method = "kendall"),
-            FSp = cor(FSp_std_local, FSp_std, use = "complete.obs", method = "kendall"),
+  summarise(FUn = cor(FUn_local, FUn, use = "complete.obs", method = "kendall"),
+            FSp = cor(FSp_local, FSp, use = "complete.obs", method = "kendall"),
             FUSE = cor(FUSE_local, FUSE, use = "complete.obs", method = "kendall"),
-            FDi = cor(FDi_std_local, FDi_std, use = "complete.obs", method = "kendall"),
+            FDi = cor(FDi_local, FDi, use = "complete.obs", method = "kendall"),
             nSp = n()) %>% 
   left_join(dat_local %>% 
               distinct(id, latitude)) %>% 
@@ -140,7 +138,7 @@ plot_final <- plot_cor_prov + plot_cor_loc +
 ggsave(plot_final, 
        filename = here("figures",
                        "main", 
-                       "fig_1.png"),
+                       "fig_1.pdf"),
        width = 183, height = 100,
        units = "mm",
        bg = "white")
