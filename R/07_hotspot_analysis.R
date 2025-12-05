@@ -87,7 +87,7 @@ plot_maps <- dat_comp %>%
 
 # save
 ggsave(plot_maps,
-       filename = here("figures", "main", "fig_4.pdf"), 
+       filename = here("figures", "main", "fig_4.png"), 
        width = 183, height = 140,
        units = "mm", bg = "white")
 
@@ -101,7 +101,7 @@ dat_hot <- dat_local %>%
               select(species, 
                      FDi_global = FDi, FSp_global = FSp, FUn_global = FUn)) %>% 
   group_by(longitude_x, latitude_y) %>% 
-  summarise(across(c(FDi_local:FUn_global), mean), 
+  summarise(across(c(FUn_local:FUn_global), mean), 
             .groups = "drop") %>% 
   pivot_longer(cols = -c(longitude_x, latitude_y), 
                names_to = "metric") %>% 
@@ -113,12 +113,13 @@ dat_hot <- dat_local %>%
 
 
 # count overlap
-dat_prop <- dat_hot %>% 
+dat_prop <- dat_hot %>%
   filter(is_hot) %>% 
   count(metric, longitude_x, latitude_y) %>% 
   filter(n == 2) %>% 
-  count(metric) %>% 
-  rename(shared = n) %>% 
+  mutate(metric = factor(metric, levels = c("FUn", "FSp", "FDi"))) %>% 
+  count(metric, name = "shared", 
+        .drop = FALSE) %>% 
   left_join(dat_hot %>% 
               filter(is_hot) %>% 
               count(metric)) %>% 
@@ -159,14 +160,14 @@ plot_hot <- dat_hot %>%
   geom_segment(aes(xend = long_end, yend = lat_end), 
                arrow = arrow(length = unit(0.1, "inches")),
                colour = "grey40",
-               data = tibble(longitude_x = c(-156, -40), long_end = c(-116, -63),
-                             latitude_y = c(54, 40), lat_end = c(71, 55),
-                             metric = "FSp")) +
+               data = tibble(longitude_x = c(-148, -40), long_end = c(-127, -63),
+                             latitude_y = c(34, 40), lat_end = c(48, 55),
+                             metric = "FDi")) +
   geom_text(aes(label = perc_ov), 
-            data = tibble(longitude_x = c(-156, -40), 
-                          latitude_y = c(48, 31), 
+            data = tibble(longitude_x = c(-148, -40), 
+                          latitude_y = c(25, 31), 
                           perc_ov = c("Local hotspot", "Global hotspot"), 
-                          metric = "FSp"), 
+                          metric = "FDi"), 
             colour = "grey20",
             size = 10/.pt) + 
   scale_fill_manual(values = c(colour_purple, colour_mint, 
