@@ -56,9 +56,9 @@ get_metrics <- function(Mat_dist, Coords, nb_NN=5, GE){
   
   
   # FUSE metrics calculation, do logarithm of sum instead of sum of logarithm
-  FUGE <- log(1+(FUn*GE))
-  FSGE <- log(1+(FSp*GE))
-  FUSE <- setNames(FUGE+FSGE,nm=nm)
+  FUGE <- 1+(FUn*GE)
+  FSGE <- 1+(FSp*GE)
+  FUSE <- setNames(log(FUGE+FSGE),nm=nm)
   
   data.frame(cbind(FUSE, FSp, FUn))
   
