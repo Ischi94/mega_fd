@@ -16,7 +16,7 @@ source(here("R",
 dat_global <- read_rds(here("data", "global_metrics.rds"))
 
 # local metrics
-dat_local <- read_rds(here("data", "local_metrics_1_res.rds"))
+dat_local <- read_rds(here("data", "local_metrics_5_res.rds"))
 
 # per realm metrics
 dat_realm <- read_rds(here("data", "realm_metrics.rds")) 
@@ -251,7 +251,7 @@ plot_final <- free(plot_province) /
 ggsave(plot_final,
        filename = here("figures",
                        "main",
-                       "fig_2.svg"),
+                       "fig_2.pdf"),
        width = 300, height = 150,
        units = "mm",
        bg = "white")

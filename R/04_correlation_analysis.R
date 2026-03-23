@@ -142,3 +142,44 @@ ggsave(plot_final,
        width = 183, height = 100,
        units = "mm",
        bg = "white")
+
+
+
+# intravariable correlation -------------------------------------------------------------------
+
+# local 
+dat_intcor_loc <- dat_local %>% 
+  summarise(FUSE_FUn = cor(FUSE_local, FUn_local, use = "complete.obs", method = "kendall"), 
+            FUSE_FSp = cor(FUSE_local, FSp_local, use = "complete.obs", method = "kendall"), 
+            FUSE_FDi = cor(FUSE_local, FDi_local, use = "complete.obs", method = "kendall"), 
+            FUn_FSp = cor(FUn_local, FSp_local, use = "complete.obs", method = "kendall"), 
+            FUn_FDi = cor(FUn_local, FDi_local, use = "complete.obs", method = "kendall"), 
+            FSp_FDi = cor(FSp_local, FDi_local, use = "complete.obs", method = "kendall"))
+
+
+# provincial 
+dat_intcor_prov <- dat_realm %>%
+  summarise(FUSE_FUn = cor(FUSE_realm, FUn_realm, use = "complete.obs", method = "kendall"), 
+            FUSE_FSp = cor(FUSE_realm, FSp_realm, use = "complete.obs", method = "kendall"), 
+            FUSE_FDi = cor(FUSE_realm, FDi_realm, use = "complete.obs", method = "kendall"), 
+            FUn_FSp = cor(FUn_realm, FSp_realm, use = "complete.obs", method = "kendall"), 
+            FUn_FDi = cor(FUn_realm, FDi_realm, use = "complete.obs", method = "kendall"), 
+            FSp_FDi = cor(FSp_realm, FDi_realm, use = "complete.obs", method = "kendall"))
+
+# global
+dat_intcor_glob <- dat_global %>% 
+  summarise(FUSE_FUn = cor(FUSE, FUn, use = "complete.obs", method = "kendall"), 
+            FUSE_FSp = cor(FUSE, FSp, use = "complete.obs", method = "kendall"), 
+            FUSE_FDi = cor(FUSE, FDi, use = "complete.obs", method = "kendall"), 
+            FUn_FSp = cor(FUn, FSp, use = "complete.obs", method = "kendall"), 
+            FUn_FDi = cor(FUn, FDi, use = "complete.obs", method = "kendall"), 
+            FSp_FDi = cor(FSp, FDi, use = "complete.obs", method = "kendall"))
+
+# merge and save
+dat_intcor_loc %>% 
+  add_column(scale = "local") %>% 
+  bind_rows(dat_intcor_prov %>% 
+              add_column(scale = "province")) %>% 
+  bind_rows(dat_intcor_glob %>% 
+              add_column(scale = "global")) %>% 
+  write_rds(here("data", "intravariable_correlation.rds"))

@@ -40,17 +40,23 @@ dat_presabs <- read_rds(here("data",
 
 # global distribution of metrices -------------------------------------------------------------
 
-# rearrange data
-dat_comp <- dat_presabs %>% 
+# aggregate
+dat_glob_agg <- dat_presabs %>%
   pivot_longer(cols = -c(longitude_x, latitude_y), 
                names_to = "species") %>% 
   filter(value == 1) %>% 
   left_join(dat_global %>% 
               select(-FUSE)) %>% 
-  group_by(longitude_x, latitude_y) %>% 
-  summarise(across(c(FDi, FSp, FUn), mean), 
+  mutate(longitude_x = floor(longitude_x / 5) * 5 + 2.5,
+         latitude_y = floor(latitude_y / 5) * 5 + 2.5) %>%
+  group_by(longitude_x, latitude_y) %>%
+  summarise(across(c(FSp, FUn, FDi), 
+                   ~ mean(.x, na.rm = TRUE)),
             .groups = "drop") %>% 
-  add_column(reso = "Global") %>% 
+  add_column(reso = "Global") 
+
+# rearrange data
+dat_comp <- dat_glob_agg %>% 
   bind_rows(dat_local %>% 
               select(longitude_x = longitude, latitude_y = latitude,
                      FDi = FDi_local,  FSp = FSp_local, FUn = FUn_local) %>% 
@@ -63,7 +69,7 @@ dat_comp <- dat_presabs %>%
                names_to = "metric")
 
 # visualise
-plot_maps <- dat_comp %>% 
+plot_maps <- dat_comp %>%
   ggplot() +
   geom_raster(aes(x = longitude_x, 
                   y = latitude_y, 
@@ -94,43 +100,70 @@ ggsave(plot_maps,
 
 # calculate hot-spots ------------------------------------------------------
 
-# use 2.5% as cutoff
-dat_hot <- dat_local %>%
-  rename(longitude_x = longitude, latitude_y = latitude) %>% 
-  left_join(dat_global %>% 
-              select(species, 
-                     FDi_global = FDi, FSp_global = FSp, FUn_global = FUn)) %>% 
-  group_by(longitude_x, latitude_y) %>% 
-  summarise(across(c(FUn_local:FUn_global), mean), 
-            .groups = "drop") %>% 
-  pivot_longer(cols = -c(longitude_x, latitude_y), 
-               names_to = "metric") %>% 
-  separate_wider_delim(cols = metric, delim = "_", names = c("metric", "reso")) %>% 
-  group_by(reso, metric) %>% 
-  mutate(is_hot = value > quantile(value, probs =  0.975)) %>% 
-  ungroup() %>% 
-  select(-value)
+# set up function to alternate hot-spot cutoff
 
-
-# count overlap
-dat_prop <- dat_hot %>%
-  filter(is_hot) %>% 
-  count(metric, longitude_x, latitude_y) %>% 
-  filter(n == 2) %>% 
-  mutate(metric = factor(metric, levels = c("FUn", "FSp", "FDi"))) %>% 
-  count(metric, name = "shared", 
-        .drop = FALSE) %>% 
-  left_join(dat_hot %>% 
-              filter(is_hot) %>% 
-              count(metric)) %>% 
-  mutate(prop_ov = (shared / n) * 100, 
-         prop_ov = round(prop_ov, 0), 
-         prop_ov = paste0(prop_ov, "%"))
+get_hotspots <- function(cutoff) {
   
+  dat_hot <- dat_local %>%
+    rename(longitude_x = longitude, latitude_y = latitude) %>% 
+    left_join(dat_global %>% 
+                select(species, 
+                       FDi_global = FDi, FSp_global = FSp, FUn_global = FUn)) %>% 
+    group_by(longitude_x, latitude_y) %>% 
+    summarise(across(c(FUn_local:FUn_global), mean), 
+              .groups = "drop") %>% 
+    pivot_longer(cols = -c(longitude_x, latitude_y), 
+                 names_to = "metric") %>% 
+    separate_wider_delim(cols = metric, delim = "_", names = c("metric", "reso")) %>% 
+    group_by(reso, metric) %>% 
+    mutate(is_hot = value > quantile(value, probs =  cutoff)) %>% 
+    ungroup() %>% 
+    select(-value)
+  
+  
+  # count overlap
+  dat_prop <- dat_hot %>%
+    filter(is_hot) %>% 
+    count(metric, longitude_x, latitude_y) %>% 
+    filter(n == 2) %>% 
+    mutate(metric = factor(metric, levels = c("FUn", "FSp", "FDi"))) %>% 
+    count(metric, name = "shared", 
+          .drop = FALSE) %>% 
+    left_join(dat_hot %>% 
+                filter(is_hot) %>% 
+                count(metric)) %>% 
+    mutate(prop_ov = (shared / n) * 100, 
+           prop_ov = round(prop_ov, 0), 
+           prop_ov = paste0(prop_ov, "%")) %>% 
+    add_column(cutoff = round((1-cutoff)*100, 1))
+  
+  list(dat_hot, dat_prop)
+  
+}
+
+# use 2.5% as cutoff
+dat_2.5 <- get_hotspots(0.975)
+  
+# use 5% as cutoff
+dat_5 <- get_hotspots(0.95)
+
+# use 10% as cutoff
+dat_10 <- get_hotspots(0.9)
+
+# use 10% as cutoff
+dat_20 <- get_hotspots(0.8)
+
+
+# merge and save
+dat_2.5[[2]] %>% 
+  bind_rows(dat_5[[2]]) %>% 
+  bind_rows(dat_10[[2]]) %>% 
+  bind_rows(dat_20[[2]]) %>% 
+  write_rds(here("data", "varying_hotspot_thresholds.rdf"))
 
 
 # create plot
-plot_hot <- dat_hot %>%
+plot_hot <- dat_2.5[[1]] %>%
   filter(is_hot) %>% 
   ggplot(aes(x = longitude_x,
              y = latitude_y)) +
@@ -147,7 +180,7 @@ plot_hot <- dat_hot %>%
              fill = "white") +
   geom_text(aes(label = prop_ov),
             size = 10/.pt,
-            data = dat_prop %>% 
+            data = dat_2.5[[2]] %>% 
               mutate(longitude_x = -130, 
                      latitude_y = -30)) +
   geom_text(aes(label = perc_ov),
