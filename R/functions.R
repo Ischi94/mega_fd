@@ -55,7 +55,7 @@ get_metrics <- function(Mat_dist, Coords, nb_NN=5, GE){
   FUn <- uni_res$Average_uniqueness[,"Mean"]
   
   
-  # FUSE metrics calculation
+  # FUSE metrics calculation, do logarithm of sum instead of sum of logarithm
   FUGE <- log(1+(FUn*GE))
   FSGE <- log(1+(FSp*GE))
   FUSE <- setNames(FUGE+FSGE,nm=nm)

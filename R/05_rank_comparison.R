@@ -251,7 +251,7 @@ plot_final <- free(plot_province) /
 ggsave(plot_final,
        filename = here("figures",
                        "main",
-                       "fig_2.svg"),
+                       "fig_2.png"),
        width = 300, height = 150,
        units = "mm",
        bg = "white")
