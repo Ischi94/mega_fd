@@ -93,7 +93,7 @@ plot_maps <- dat_comp %>%
 
 # save
 ggsave(plot_maps,
-       filename = here("figures", "main", "fig_4.png"), 
+       filename = here("figures", "main", "fig_4.pdf"), 
        width = 183, height = 140,
        units = "mm", bg = "white")
 
