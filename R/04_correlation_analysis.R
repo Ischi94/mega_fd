@@ -175,11 +175,46 @@ dat_intcor_glob <- dat_global %>%
             FUn_FDi = cor(FUn, FDi, use = "complete.obs", method = "kendall"), 
             FSp_FDi = cor(FSp, FDi, use = "complete.obs", method = "kendall"))
 
-# merge and save
-dat_intcor_loc %>% 
+# merge 
+dat_intcor <- dat_intcor_loc %>% 
   add_column(scale = "local") %>% 
   bind_rows(dat_intcor_prov %>% 
               add_column(scale = "province")) %>% 
   bind_rows(dat_intcor_glob %>% 
-              add_column(scale = "global")) %>% 
+              add_column(scale = "global")) 
+# save
+dat_intcor %>% 
   write_rds(here("data", "intravariable_correlation.rds"))
+
+
+# dat_intcor <- read_rds(here("data", "intravariable_correlation.rds"))
+
+# plot
+plot_intcor <- dat_intcor %>% 
+  pivot_longer(cols = -scale) %>% 
+  separate_wider_delim(name, delim = "_", names = c("var_a", "var_b")) %>% 
+  full_join(tibble(var_a = c("FUSE", "FUn", "FSp", "FDi"), 
+                   var_b = c("FUSE", "FUn", "FSp", "FDi")) %>% 
+              add_column(value = 1) %>% 
+              expand_grid(scale = c("local", "province", "global"))) %>% 
+  mutate(scale = str_to_sentence(scale), 
+         scale = ordered(scale, levels = c("Local", "Province", "Global"))) %>% 
+  ggplot(aes(var_a, var_b)) +
+  geom_tile(aes(fill = value), color = 'black') +
+  geom_text(aes(label = round(value, 2))) +
+  scale_fill_gradient2(low = colour_mint, mid = colour_yellow, high = colour_coral, 
+                       midpoint = 0.5) +
+  labs(x = element_blank(),
+       y = element_blank(),
+       fill = "Correlation") +
+  facet_wrap(~scale)
+
+# save plot
+ggsave(plot_intcor, 
+       filename = here("figures",
+                       "main", 
+                       "suppl_1.pdf"),
+       width = 183, height = 100,
+       units = "mm",
+       bg = "white")
+
