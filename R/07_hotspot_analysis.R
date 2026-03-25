@@ -159,7 +159,7 @@ dat_2.5[[2]] %>%
   bind_rows(dat_5[[2]]) %>% 
   bind_rows(dat_10[[2]]) %>% 
   bind_rows(dat_20[[2]]) %>% 
-  write_rds(here("data", "varying_hotspot_thresholds.rdf"))
+  write_csv(here("data", "varying_hotspot_thresholds.csv"))
 
 
 # create plot
